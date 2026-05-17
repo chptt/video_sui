@@ -16,6 +16,7 @@ export function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -40,92 +41,186 @@ export function Navbar() {
   const formatAddress = (addr: string) =>
     addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
 
+  const navLink = (href: string, label: string) => (
+    <Link
+      href={href}
+      style={{
+        fontSize: "0.875rem",
+        color: pathname === href ? "#a855f7" : "#94a3b8",
+        textDecoration: "none",
+        transition: "color 0.2s",
+      }}
+    >
+      {label}
+    </Link>
+  );
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
-              PT
-            </div>
-            <span className="font-semibold text-white group-hover:text-purple-300 transition-colors">
-              PrivateTube
-            </span>
-          </Link>
-
-          {/* Nav Links */}
-          <div className="hidden md:flex items-center gap-6">
-            <Link
-              href="/marketplace"
-              className={`text-sm transition-colors ${
-                pathname === "/marketplace"
-                  ? "text-purple-400"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              Marketplace
-            </Link>
-            {user && (
-              <>
-                <Link
-                  href="/dashboard"
-                  className={`text-sm transition-colors ${
-                    pathname === "/dashboard"
-                      ? "text-purple-400"
-                      : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/create"
-                  className={`text-sm transition-colors ${
-                    pathname === "/create"
-                      ? "text-purple-400"
-                      : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  Create
-                </Link>
-              </>
-            )}
+    <nav
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        background: "rgba(5,8,20,0.85)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "80rem",
+          margin: "0 auto",
+          padding: "0 1.5rem",
+          height: "64px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+        }}
+      >
+        {/* Logo */}
+        <Link
+          href="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            textDecoration: "none",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
+              background: "linear-gradient(135deg, #a855f7, #3b82f6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              fontWeight: 700,
+              fontSize: "0.75rem",
+            }}
+          >
+            PT
           </div>
+          <span style={{ fontWeight: 600, color: "#f8fafc", fontSize: "0.9375rem" }}>
+            PrivateTube
+          </span>
+        </Link>
 
-          {/* Auth */}
-          <div className="flex items-center gap-3">
-            {/* Slush wallet connection */}
-            <SlushWalletBar />
+        {/* Desktop nav links */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1.5rem",
+          }}
+          className="hidden-mobile"
+        >
+          {navLink("/marketplace", "Marketplace")}
+          {user && navLink("/dashboard", "Dashboard")}
+          {user && navLink("/create", "Create")}
+        </div>
 
-            {loading ? (
-              <LoadingSpinner size="sm" />
-            ) : user ? (
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:flex flex-col items-end">
-                  <span className="text-xs text-gray-400">{user.email}</span>
-                  <span className="text-xs text-purple-400 font-mono">
-                    {formatAddress(user.suiAddress)}
-                  </span>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-white border border-white/10 hover:border-white/30 rounded-lg transition-all disabled:opacity-50"
-                >
-                  {loggingOut ? <LoadingSpinner size="sm" /> : "Logout"}
-                </button>
-              </div>
-            ) : (
-              <Link
-                href="/login"
-                className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg transition-all"
+        {/* Right side */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            flexShrink: 0,
+          }}
+        >
+          {/* Slush wallet */}
+          <SlushWalletBar />
+
+          {loading ? (
+            <LoadingSpinner size="sm" />
+          ) : user ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                }}
+                className="hidden-mobile"
               >
-                Login
-              </Link>
-            )}
-          </div>
+                <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                  {user.email}
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.6875rem",
+                    color: "#a855f7",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {formatAddress(user.suiAddress)}
+                </span>
+              </div>
+              {user.isAdmin && (
+                <span
+                  style={{
+                    fontSize: "0.6875rem",
+                    padding: "0.125rem 0.5rem",
+                    background: "rgba(234,179,8,0.15)",
+                    border: "1px solid rgba(234,179,8,0.3)",
+                    color: "#fde047",
+                    borderRadius: "9999px",
+                  }}
+                >
+                  Admin
+                </span>
+              )}
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                style={{
+                  padding: "0.375rem 0.875rem",
+                  fontSize: "0.8125rem",
+                  color: "#94a3b8",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "0.5rem",
+                  background: "transparent",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                {loggingOut ? <LoadingSpinner size="sm" /> : "Logout"}
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              style={{
+                padding: "0.5rem 1.25rem",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                background: "linear-gradient(135deg, #7c3aed, #2563eb)",
+                color: "white",
+                borderRadius: "0.625rem",
+                textDecoration: "none",
+                transition: "opacity 0.2s",
+              }}
+            >
+              Login
+            </Link>
+          )}
         </div>
       </div>
+
+      {/* Hide on mobile helper — inline style approach */}
+      <style>{`
+        @media (max-width: 640px) {
+          .hidden-mobile { display: none !important; }
+        }
+      `}</style>
     </nav>
   );
 }
