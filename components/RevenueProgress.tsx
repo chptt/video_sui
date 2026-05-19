@@ -9,67 +9,46 @@ interface RevenueProgressProps {
   isSoldOut: boolean;
 }
 
-export function RevenueProgress({
-  totalGrossRevenueUsd,
-  revenueCapUsd,
-  totalCreatorRevenueUsd,
-  totalPlatformRevenueUsd,
-  purchaseCount,
-  isSoldOut,
-}: RevenueProgressProps) {
-  const percentage = Math.min(
-    (totalGrossRevenueUsd / revenueCapUsd) * 100,
-    100
-  );
-
-  const getBarColor = () => {
-    if (isSoldOut) return "bg-red-500";
-    if (percentage >= 80) return "bg-orange-500";
-    if (percentage >= 50) return "bg-yellow-500";
-    return "bg-gradient-to-r from-purple-500 to-blue-500";
-  };
+export function RevenueProgress({ totalGrossRevenueUsd, revenueCapUsd, totalCreatorRevenueUsd, totalPlatformRevenueUsd, purchaseCount, isSoldOut }: RevenueProgressProps) {
+  const pct = Math.min((totalGrossRevenueUsd / revenueCapUsd) * 100, 100);
+  const fillColor = isSoldOut ? "#ef4444" : pct >= 80 ? "#f97316" : pct >= 50 ? "#eab308" : "linear-gradient(90deg, #a855f7, #3b82f6)";
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-gray-400">Revenue Progress</span>
-        <span className={isSoldOut ? "text-red-400" : "text-white"}>
+    <div className="stack-sm">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: "0.8125rem", color: "#64748b" }}>Revenue</span>
+        <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: isSoldOut ? "#f87171" : "#f8fafc" }}>
           ${totalGrossRevenueUsd.toFixed(2)} / ${revenueCapUsd.toFixed(2)}
         </span>
       </div>
 
-      {/* Progress bar */}
-      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+      <div className="progress-track">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${getBarColor()}`}
-          style={{ width: `${percentage}%` }}
+          className="progress-fill"
+          style={{
+            width: `${pct}%`,
+            background: typeof fillColor === "string" && fillColor.startsWith("linear") ? fillColor : fillColor,
+          }}
         />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 text-center">
-        <div className="glass-card rounded-lg p-2">
-          <p className="text-xs text-gray-500">Purchases</p>
-          <p className="text-sm font-semibold text-white">{purchaseCount}</p>
-        </div>
-        <div className="glass-card rounded-lg p-2">
-          <p className="text-xs text-gray-500">Creator Earned</p>
-          <p className="text-sm font-semibold text-green-400">
-            ${totalCreatorRevenueUsd.toFixed(2)}
-          </p>
-        </div>
-        <div className="glass-card rounded-lg p-2">
-          <p className="text-xs text-gray-500">Platform Fee</p>
-          <p className="text-sm font-semibold text-blue-400">
-            ${totalPlatformRevenueUsd.toFixed(2)}
-          </p>
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.625rem" }}>
+        {[
+          { label: "Sales", value: purchaseCount.toString(), color: "#f8fafc" },
+          { label: "Creator", value: `$${totalCreatorRevenueUsd.toFixed(2)}`, color: "#4ade80" },
+          { label: "Platform", value: `$${totalPlatformRevenueUsd.toFixed(2)}`, color: "#60a5fa" },
+        ].map((s) => (
+          <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: "0.625rem", padding: "0.625rem", textAlign: "center" }}>
+            <p style={{ fontSize: "0.75rem", color: "#475569" }}>{s.label}</p>
+            <p style={{ fontSize: "0.9375rem", fontWeight: 700, color: s.color, marginTop: "0.125rem" }}>{s.value}</p>
+          </div>
+        ))}
       </div>
 
       {isSoldOut && (
-        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+        <div className="alert alert-error" style={{ fontSize: "0.8125rem" }}>
           <span>🔒</span>
-          <span>Revenue cap reached — no new purchases allowed</span>
+          Revenue cap reached — no new purchases
         </div>
       )}
     </div>

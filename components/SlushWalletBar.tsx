@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * SlushWalletBar — shows connected wallet address in the Navbar.
- * Opens the connect modal when no wallet is connected.
- */
-
 import { useState } from "react";
 import { useDAppKit, useCurrentAccount } from "@mysten/dapp-kit-react";
 import { SlushConnectModal } from "./SlushConnectModal";
@@ -19,32 +14,29 @@ export function SlushWalletBar() {
       <>
         <button
           onClick={() => setShowConnect(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg transition-all"
-          title="Connect Slush wallet to make payments"
+          className="btn btn-outline btn-sm"
+          style={{ gap: "0.5rem" }}
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+          <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#475569", display: "inline-block" }} />
           Connect Wallet
         </button>
-        <SlushConnectModal
-          open={showConnect}
-          onClose={() => setShowConnect(false)}
-        />
+        <SlushConnectModal open={showConnect} onClose={() => setShowConnect(false)} />
       </>
     );
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-600/20 border border-purple-500/30 text-purple-300 rounded-lg">
-        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-        <span className="font-mono">
-          {account.address.slice(0, 6)}...{account.address.slice(-4)}
-        </span>
+    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+      <div className="wallet-pill">
+        <span className="wallet-dot animate-pulse" />
+        {account.address.slice(0, 6)}...{account.address.slice(-4)}
       </div>
       <button
         onClick={() => dAppKit.disconnectWallet()}
-        className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        style={{ background: "none", border: "none", color: "#475569", fontSize: "1rem", padding: "0.25rem", lineHeight: 1, cursor: "pointer", transition: "color 0.15s" }}
         title="Disconnect wallet"
+        onMouseEnter={e => (e.currentTarget.style.color = "#94a3b8")}
+        onMouseLeave={e => (e.currentTarget.style.color = "#475569")}
       >
         ✕
       </button>

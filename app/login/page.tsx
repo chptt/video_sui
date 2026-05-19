@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoginButton } from "@/components/LoginButton";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { Suspense } from "react";
+import { LoadingPage } from "@/components/LoadingSpinner";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  oauth_config_error: "Google OAuth is not configured. Please check environment variables.",
+  oauth_config_error: "Google OAuth is not configured. Check environment variables.",
   oauth_denied: "Google login was cancelled.",
   no_code: "No authorization code received from Google.",
   no_id_token: "Failed to get ID token from Google.",
@@ -22,94 +21,71 @@ function LoginContent() {
   const error = searchParams.get("error");
 
   useEffect(() => {
-    // Check if already logged in
-    fetch("/api/auth/session")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.user) {
-          router.replace("/dashboard");
-        } else {
-          setChecking(false);
-        }
-      })
-      .catch(() => setChecking(false));
+    fetch("/api/auth/session").then(r => r.json()).then(data => {
+      if (data.user) router.replace("/dashboard");
+      else setChecking(false);
+    }).catch(() => setChecking(false));
   }, [router]);
 
-  if (checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+  if (checking) return <LoadingPage message="Checking session..." />;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      {/* Background glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-purple-600/10 rounded-full blur-3xl" />
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem 1.5rem", position: "relative" }}>
+      {/* Glow */}
+      <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", width: "600px", height: "400px", background: "radial-gradient(ellipse, rgba(120,40,200,0.18) 0%, transparent 65%)", borderRadius: "50%" }} />
       </div>
 
-      <div className="relative w-full max-w-md space-y-8">
+      <div style={{ position: "relative", width: "100%", maxWidth: "440px" }} className="stack-xl">
         {/* Logo */}
-        <div className="text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-2xl mx-auto">
+        <div style={{ textAlign: "center" }} className="stack-sm">
+          <div style={{ width: "64px", height: "64px", borderRadius: "18px", background: "linear-gradient(135deg, #7c3aed, #2563eb)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: "1.25rem", margin: "0 auto", boxShadow: "0 0 32px rgba(124,58,237,0.4)" }}>
             PT
           </div>
-          <h1 className="text-3xl font-bold text-white">PrivateTube</h1>
-          <p className="text-gray-400">
-            Sign in with Google to access encrypted videos
-          </p>
+          <h1 style={{ fontSize: "1.875rem", fontWeight: 800, color: "#f8fafc" }}>PrivateTube</h1>
+          <p style={{ color: "#64748b" }}>Sign in with Google to access encrypted videos</p>
         </div>
 
-        {/* Error message */}
+        {/* Error */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-400">
+          <div className="alert alert-error">
+            <span>⚠️</span>
             {ERROR_MESSAGES[error] || "An error occurred. Please try again."}
           </div>
         )}
 
-        {/* Login card */}
-        <div className="glass-card rounded-2xl p-8 space-y-6">
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-white">
-              Login with zkLogin
-            </h2>
-            <p className="text-sm text-gray-400">
-              No wallet or seed phrase needed. Your Google account generates a
-              Sui wallet address automatically.
+        {/* Card */}
+        <div className="card" style={{ padding: "2rem" }}>
+          <div className="stack-xs">
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: "#f8fafc" }}>Login with zkLogin</h2>
+            <p style={{ fontSize: "0.875rem", color: "#64748b" }}>
+              No wallet or seed phrase needed. Your Google account generates a Sui wallet address automatically.
             </p>
           </div>
 
-          <LoginButton className="w-full" label="Continue with Google" />
+          <LoginButton label="Continue with Google" />
 
-          {/* zkLogin explanation */}
-          <div className="space-y-3 pt-2 border-t border-white/10">
-            <p className="text-xs font-medium text-gray-400">
-              How Sui zkLogin works:
-            </p>
-            <div className="space-y-2">
+          <div style={{ paddingTop: "1.25rem", borderTop: "1px solid rgba(255,255,255,0.07)" }} className="stack-sm">
+            <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#64748b" }}>How Sui zkLogin works:</p>
+            <div className="stack-xs">
               {[
                 "Sign in with your Google account",
                 "A unique Sui wallet address is derived from your Google ID",
                 "No seed phrases — your Google account IS your wallet",
                 "Zero-knowledge proof ensures privacy",
               ].map((step, i) => (
-                <div key={i} className="flex items-start gap-2 text-xs text-gray-500">
-                  <span className="text-purple-400 mt-0.5">→</span>
-                  <span>{step}</span>
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem" }}>
+                  <span style={{ color: "#7c3aed", fontWeight: 700, flexShrink: 0, marginTop: "1px" }}>→</span>
+                  <span style={{ fontSize: "0.8125rem", color: "#64748b" }}>{step}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Security note */}
-        <div className="text-center text-xs text-gray-600">
-          🔐 Your session is stored in an HTTP-only cookie.
-          <br />
-          We never store your Google password.
-        </div>
+        <p style={{ textAlign: "center", fontSize: "0.8125rem", color: "#334155" }}>
+          🔐 Session stored in HTTP-only cookie · We never store your Google password
+        </p>
       </div>
     </div>
   );
@@ -117,7 +93,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>}>
+    <Suspense fallback={<LoadingPage message="Loading..." />}>
       <LoginContent />
     </Suspense>
   );

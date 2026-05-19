@@ -11,98 +11,61 @@ export default function CreatePage() {
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/session")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.user) {
-          router.replace("/login");
-        } else {
-          setAuthed(true);
-          setLoading(false);
-        }
-      })
-      .catch(() => router.replace("/login"));
+    fetch("/api/auth/session").then(r => r.json()).then(data => {
+      if (!data.user) router.replace("/login");
+      else { setAuthed(true); setLoading(false); }
+    }).catch(() => router.replace("/login"));
   }, [router]);
 
   if (loading) return <LoadingPage message="Checking authentication..." />;
   if (!authed) return null;
 
   return (
-    <div className="min-h-screen px-4 py-8">
-      {/* Background glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-purple-600/8 rounded-full blur-3xl" />
+    <div className="page" style={{ position: "relative" }}>
+      {/* Glow */}
+      <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "20%", left: "50%", transform: "translateX(-50%)", width: "500px", height: "300px", background: "radial-gradient(ellipse, rgba(120,40,200,0.12) 0%, transparent 65%)", borderRadius: "50%" }} />
       </div>
 
-      <div className="relative max-w-2xl mx-auto space-y-8">
+      <div style={{ position: "relative", maxWidth: "640px", margin: "0 auto" }} className="stack-xl">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-white">
+        <div style={{ textAlign: "center" }} className="stack-sm">
+          <h1 style={{ fontSize: "clamp(1.75rem, 4vw, 2.25rem)", fontWeight: 800, color: "#f8fafc" }}>
             Create Encrypted Video
           </h1>
-          <p className="text-gray-400">
-            Your YouTube URL will be encrypted with AES-256-GCM and stored on
-            Pinata IPFS
+          <p style={{ color: "#64748b" }}>
+            Your YouTube URL will be AES-256-GCM encrypted and stored on Pinata IPFS
           </p>
         </div>
 
-        {/* Security badges */}
-        <div className="flex flex-wrap justify-center gap-2">
-          {[
-            "🔐 AES-256-GCM",
-            "🌐 Pinata IPFS",
-            "🔒 Server-side only",
-            "💎 Sui Testnet",
-          ].map((badge) => (
-            <span
-              key={badge}
-              className="px-3 py-1 text-xs bg-white/5 border border-white/10 rounded-full text-gray-400"
-            >
-              {badge}
-            </span>
+        {/* Tech badges */}
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.625rem" }}>
+          {["🔐 AES-256-GCM", "🌐 Pinata IPFS", "🔒 Server-side only", "💎 Sui Testnet"].map(b => (
+            <span key={b} className="badge badge-gray">{b}</span>
           ))}
         </div>
 
-        {/* Form */}
-        <div className="glass-card rounded-2xl p-8">
+        {/* Form card */}
+        <div className="card" style={{ padding: "2rem" }}>
           <CreateVideoForm />
         </div>
 
-        {/* Info */}
-        <div className="glass-card rounded-xl p-5 space-y-3">
-          <h3 className="text-sm font-medium text-gray-300">
-            📋 Before you create
-          </h3>
-          <ul className="space-y-2 text-xs text-gray-400">
-            <li className="flex items-start gap-2">
-              <span className="text-yellow-400 mt-0.5">⚠️</span>
-              <span>
-                Set your YouTube video to <strong className="text-white">Unlisted</strong> before
-                adding it here. Private videos cannot be embedded.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-400 mt-0.5">ℹ️</span>
-              <span>
-                The YouTube URL is encrypted immediately — it never appears in
-                logs or responses.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-green-400 mt-0.5">✓</span>
-              <span>
-                Revenue cap is $20 USD gross. After that, no new purchases are
-                allowed but existing access remains valid.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-purple-400 mt-0.5">💎</span>
-              <span>
-                Payments are split: 90% to you, 10% platform fee. All on Sui
-                testnet.
-              </span>
-            </li>
-          </ul>
+        {/* Info card */}
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#f8fafc", marginBottom: "1rem" }}>📋 Before you create</h3>
+          <div className="stack-sm">
+            {[
+              { icon: "⚠️", color: "#fbbf24", text: <>Set your YouTube video to <strong style={{ color: "#f8fafc" }}>Unlisted</strong> before adding it here. Private videos cannot be embedded.</> },
+              { icon: "ℹ️", color: "#60a5fa", text: "The YouTube URL is encrypted immediately — it never appears in logs or API responses." },
+              { icon: "✓", color: "#4ade80", text: "Revenue cap is $20 USD gross. After that, no new purchases are allowed but existing access remains valid." },
+              { icon: "💎", color: "#a855f7", text: "Payments are split: 90% to you, 10% platform fee. All on Sui testnet via Slush wallet." },
+            ].map((item, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+                <span style={{ color: item.color, flexShrink: 0, marginTop: "1px" }}>{item.icon}</span>
+                <p style={{ fontSize: "0.875rem", color: "#64748b", lineHeight: 1.6 }}>{item.text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

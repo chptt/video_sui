@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { LoadingSpinner } from "./LoadingSpinner";
+import Link from "next/link";
 
 interface SecureVideoPlayerProps {
   videoId: string;
@@ -17,129 +18,86 @@ export function SecureVideoPlayer({ videoId }: SecureVideoPlayerProps) {
   const [playData, setPlayData] = useState<PlayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<string>("");
+  const [timeLeft, setTimeLeft] = useState("");
 
   const fetchPlayData = useCallback(async () => {
     try {
       const res = await fetch(`/api/videos/${videoId}/play`);
       const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || data.error || "Access denied");
-        return;
-      }
-
+      if (!res.ok) { setError(data.message || data.error || "Access denied"); return; }
       setPlayData(data);
-    } catch {
-      setError("Failed to load video");
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError("Failed to load video"); }
+    finally { setLoading(false); }
   }, [videoId]);
 
-  useEffect(() => {
-    fetchPlayData();
-  }, [fetchPlayData]);
+  useEffect(() => { fetchPlayData(); }, [fetchPlayData]);
 
-  // Countdown timer
   useEffect(() => {
     if (!playData?.expiresAt) return;
-
-    const updateTimer = () => {
-      const now = new Date();
-      const expiry = new Date(playData.expiresAt);
-      const diffMs = expiry.getTime() - now.getTime();
-
-      if (diffMs <= 0) {
-        setTimeLeft("Expired");
-        setPlayData(null);
-        setError("Your access has expired");
-        return;
-      }
-
-      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-
-      if (hours > 0) {
-        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
-      } else if (minutes > 0) {
-        setTimeLeft(`${minutes}m ${seconds}s`);
-      } else {
-        setTimeLeft(`${seconds}s`);
-      }
+    const update = () => {
+      const diff = new Date(playData.expiresAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft("Expired"); setPlayData(null); setError("Your access has expired"); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`);
     };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
   }, [playData?.expiresAt]);
 
-  if (loading) {
-    return (
-      <div className="aspect-video bg-black/50 rounded-2xl flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <LoadingSpinner size="lg" />
-          <p className="text-gray-400 text-sm">Verifying access...</p>
-        </div>
+  if (loading) return (
+    <div style={{ aspectRatio: "16/9", background: "rgba(0,0,0,0.4)", borderRadius: "1rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }} className="stack-sm">
+        <LoadingSpinner size="lg" />
+        <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Verifying access...</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (error) {
-    return (
-      <div className="aspect-video bg-black/50 rounded-2xl flex items-center justify-center border border-red-500/20">
-        <div className="text-center space-y-4 p-8">
-          <div className="text-5xl">🔒</div>
-          <div>
-            <h3 className="text-xl font-semibold text-white mb-2">
-              Access Denied
-            </h3>
-            <p className="text-gray-400 text-sm">{error}</p>
-          </div>
-          <a
-            href="/marketplace"
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-medium rounded-xl hover:from-purple-500 hover:to-blue-500 transition-all"
-          >
-            Go to Marketplace
-          </a>
-        </div>
+  if (error) return (
+    <div style={{ aspectRatio: "16/9", background: "rgba(0,0,0,0.4)", borderRadius: "1rem", border: "1px solid rgba(239,68,68,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center", padding: "2rem" }} className="stack">
+        <div style={{ fontSize: "3.5rem" }}>🔒</div>
+        <h3 style={{ fontSize: "1.25rem", fontWeight: 600, color: "#f8fafc" }}>Access Denied</h3>
+        <p style={{ color: "#64748b", fontSize: "0.9375rem" }}>{error}</p>
+        <Link href="/marketplace" className="btn btn-primary" style={{ display: "inline-flex", marginTop: "0.5rem" }}>
+          Go to Marketplace
+        </Link>
       </div>
-    );
-  }
+    </div>
+  );
 
   if (!playData) return null;
 
   return (
-    <div className="space-y-4">
-      {/* Access timer */}
-      <div className="flex items-center justify-between px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-sm text-green-400">Active Access</span>
+    <div className="stack-sm">
+      {/* Timer bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#4ade80", display: "inline-block" }} className="animate-pulse" />
+          <span style={{ fontSize: "0.875rem", color: "#4ade80", fontWeight: 500 }}>Active Access</span>
         </div>
-        <div className="text-sm text-gray-300">
-          <span className="text-gray-500">Expires in: </span>
-          <span className="font-mono text-green-300">{timeLeft}</span>
+        <div style={{ fontSize: "0.875rem", color: "#94a3b8" }}>
+          Expires in: <span style={{ fontFamily: "monospace", color: "#4ade80", fontWeight: 600 }}>{timeLeft}</span>
         </div>
       </div>
 
-      {/* Video player */}
-      <div className="relative aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl">
+      {/* Player */}
+      <div style={{ position: "relative", aspectRatio: "16/9", background: "#000", borderRadius: "1rem", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }}>
         <iframe
           src={playData.embedUrl}
           title={playData.title}
-          className="w-full h-full"
+          style={{ width: "100%", height: "100%", border: "none" }}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
         />
       </div>
 
-      {/* Security notice */}
-      <p className="text-xs text-gray-600 text-center">
-        🔐 Video served via encrypted IPFS metadata • Access expires{" "}
-        {new Date(playData.expiresAt).toLocaleString()}
+      <p style={{ fontSize: "0.75rem", color: "#334155", textAlign: "center" }}>
+        🔐 Served via encrypted IPFS metadata · Access expires {new Date(playData.expiresAt).toLocaleString()}
       </p>
     </div>
   );

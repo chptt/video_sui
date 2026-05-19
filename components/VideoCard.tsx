@@ -19,71 +19,41 @@ interface VideoCardProps {
   thumbnailUrl?: string;
   accessStatus?: "none" | "active" | "expired";
   expiresAt?: string | null;
-  /** Called with txDigest after Slush wallet payment succeeds */
   onPaymentSuccess?: (videoId: string, txDigest: string) => void;
   isPurchasing?: boolean;
-  // Admin props
   isAdmin?: boolean;
   onDisableToggle?: (videoId: string, disable: boolean) => void;
 }
 
 export function VideoCard({
-  videoId,
-  title,
-  creatorAddress,
-  priceMist,
-  durationMs,
-  isSoldOut,
-  isDisabled,
-  status,
-  createdAt,
-  thumbnailUrl,
-  accessStatus = "none",
-  expiresAt,
-  onPaymentSuccess,
-  isPurchasing = false,
-  isAdmin = false,
-  onDisableToggle,
+  videoId, title, creatorAddress, priceMist, durationMs,
+  isSoldOut, isDisabled, status, createdAt, thumbnailUrl,
+  accessStatus = "none", expiresAt, onPaymentSuccess,
+  isPurchasing = false, isAdmin = false, onDisableToggle,
 }: VideoCardProps) {
   const [imgError, setImgError] = useState(false);
   const [disabling, setDisabling] = useState(false);
-  const [showReasonInput, setShowReasonInput] = useState(false);
+  const [showReason, setShowReason] = useState(false);
   const [reason, setReason] = useState("");
 
-  const formatAddress = (addr: string) =>
-    `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-
-  const formatDuration = (ms: number) => {
-    const hours = ms / (1000 * 60 * 60);
-    if (hours < 24) return `${hours}h access`;
-    const days = Math.floor(hours / 24);
-    return `${days}d access`;
+  const fmtAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
+  const fmtDuration = (ms: number) => {
+    const h = ms / 3600000;
+    return h < 24 ? `${h}h access` : `${Math.floor(h / 24)}d access`;
+  };
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtExpiry = (d: string) => {
+    const diff = new Date(d).getTime() - Date.now();
+    if (diff <= 0) return "Expired";
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h > 24) return `${Math.floor(h / 24)}d left`;
+    if (h > 0) return `${h}h ${m}m left`;
+    return `${m}m left`;
   };
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-
-  const formatExpiry = (expiryStr: string) => {
-    const expiry = new Date(expiryStr);
-    const now = new Date();
-    const diffMs = expiry.getTime() - now.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    if (diffMs <= 0) return "Expired";
-    if (diffHours > 24) return `${Math.floor(diffHours / 24)}d remaining`;
-    if (diffHours > 0) return `${diffHours}h ${diffMins}m remaining`;
-    return `${diffMins}m remaining`;
-  };
-
-  const handleDisableToggle = async (disable: boolean) => {
-    if (disable && !reason.trim()) {
-      setShowReasonInput(true);
-      return;
-    }
+  const handleDisable = async (disable: boolean) => {
+    if (disable && !reason.trim()) { setShowReason(true); return; }
     setDisabling(true);
     try {
       const res = await fetch(`/api/admin/videos/${videoId}/disable`, {
@@ -92,85 +62,48 @@ export function VideoCard({
         body: JSON.stringify({ disable, reason: reason.trim() || undefined }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || "Failed to update campaign");
-        return;
-      }
+      if (!res.ok) { toast.error(data.error || "Failed"); return; }
       toast.success(data.message);
-      setShowReasonInput(false);
+      setShowReason(false);
       setReason("");
       onDisableToggle?.(videoId, disable);
-    } catch {
-      toast.error("Network error");
-    } finally {
-      setDisabling(false);
-    }
+    } catch { toast.error("Network error"); }
+    finally { setDisabling(false); }
   };
 
-  const getActionButton = () => {
-    if (isDisabled) {
-      return (
-        <div className="w-full text-center px-4 py-2.5 text-sm text-gray-400 bg-gray-500/10 border border-gray-500/20 rounded-lg">
-          🚫 Disabled by Admin
+  const renderAction = () => {
+    if (isDisabled) return (
+      <div className="badge badge-gray" style={{ width: "100%", justifyContent: "center", padding: "0.625rem" }}>
+        🚫 Disabled by Admin
+      </div>
+    );
+    if (accessStatus === "active" && expiresAt) return (
+      <Link href={`/watch/${videoId}`} className="btn btn-success btn-full">
+        ▶ Watch Now
+      </Link>
+    );
+    if (accessStatus === "expired") return (
+      <div className="stack-xs">
+        <div className="badge badge-yellow" style={{ width: "100%", justifyContent: "center", padding: "0.5rem" }}>
+          Access Expired
         </div>
-      );
-    }
-
-    if (accessStatus === "active" && expiresAt) {
-      return (
-        <Link
-          href={`/watch/${videoId}`}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-medium rounded-lg transition-all"
-        >
-          <span>▶</span>
-          Watch Now
-        </Link>
-      );
-    }
-
-    if (accessStatus === "expired") {
-      return (
-        <div className="space-y-2">
-          <div className="w-full text-center px-4 py-2 text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-            Access Expired
-          </div>
-          {!isSoldOut && onPaymentSuccess && (
-            <SlushPayButton
-              videoId={videoId}
-              priceMist={priceMist}
-              creatorAddress={creatorAddress}
-              onSuccess={(digest) => onPaymentSuccess(videoId, digest)}
-            />
-          )}
-        </div>
-      );
-    }
-
-    if (isSoldOut || status === "sold_out") {
-      return (
-        <div className="w-full text-center px-4 py-2.5 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg">
-          🔒 Sold Out
-        </div>
-      );
-    }
-
-    if (onPaymentSuccess) {
-      return (
-        <SlushPayButton
-          videoId={videoId}
-          priceMist={priceMist}
-          creatorAddress={creatorAddress}
-          onSuccess={(digest) => onPaymentSuccess(videoId, digest)}
-          disabled={isPurchasing}
-        />
-      );
-    }
-
+        {!isSoldOut && onPaymentSuccess && (
+          <SlushPayButton videoId={videoId} priceMist={priceMist} creatorAddress={creatorAddress}
+            onSuccess={(d) => onPaymentSuccess(videoId, d)} label="Renew Access" />
+        )}
+      </div>
+    );
+    if (isSoldOut || status === "sold_out") return (
+      <div className="badge badge-red" style={{ width: "100%", justifyContent: "center", padding: "0.625rem" }}>
+        🔒 Sold Out
+      </div>
+    );
+    if (onPaymentSuccess) return (
+      <SlushPayButton videoId={videoId} priceMist={priceMist} creatorAddress={creatorAddress}
+        onSuccess={(d) => onPaymentSuccess(videoId, d)} disabled={isPurchasing} />
+    );
     return (
-      <Link
-        href="/marketplace"
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white text-sm font-medium rounded-lg transition-all"
-      >
+      <Link href="/marketplace" className="btn btn-primary btn-full">
         View in Marketplace
       </Link>
     );
@@ -178,137 +111,89 @@ export function VideoCard({
 
   return (
     <div
-      className={`glass-card rounded-xl overflow-hidden group transition-all duration-300 ${
-        isDisabled
-          ? "opacity-60 border-gray-500/20"
-          : "hover:border-purple-500/30"
-      }`}
+      className="card"
+      style={{
+        overflow: "hidden",
+        opacity: isDisabled ? 0.65 : 1,
+        transition: "transform 0.2s, box-shadow 0.2s",
+      }}
+      onMouseEnter={e => { if (!isDisabled) { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 8px 32px rgba(168,85,247,0.15)"; } }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ""; (e.currentTarget as HTMLDivElement).style.boxShadow = ""; }}
     >
       {/* Thumbnail */}
-      <div className="relative aspect-video bg-gradient-to-br from-purple-900/50 to-blue-900/50 overflow-hidden">
+      <div className="thumb-wrap">
         {thumbnailUrl && !imgError ? (
-          <img
-            src={thumbnailUrl}
-            alt={title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onError={() => setImgError(true)}
-          />
+          <img src={thumbnailUrl} alt={title} onError={() => setImgError(true)} />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-4xl opacity-30">🎬</div>
-          </div>
+          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "3rem", opacity: 0.25 }}>🎬</div>
         )}
-
-        {/* Overlay badges */}
-        <div className="absolute top-2 right-2 flex gap-1">
-          {isDisabled && (
-            <span className="px-2 py-0.5 text-xs bg-gray-700/90 text-gray-300 rounded-full backdrop-blur-sm">
-              Disabled
-            </span>
-          )}
-          {isSoldOut && !isDisabled && (
-            <span className="px-2 py-0.5 text-xs bg-red-500/80 text-white rounded-full backdrop-blur-sm">
-              Sold Out
-            </span>
-          )}
-          {accessStatus === "active" && (
-            <span className="px-2 py-0.5 text-xs bg-green-500/80 text-white rounded-full backdrop-blur-sm">
-              ✓ Access
-            </span>
-          )}
+        {/* Badges */}
+        <div style={{ position: "absolute", top: "0.625rem", right: "0.625rem", display: "flex", gap: "0.375rem" }}>
+          {isDisabled && <span className="badge badge-gray" style={{ fontSize: "0.6875rem" }}>Disabled</span>}
+          {isSoldOut && !isDisabled && <span className="badge badge-red" style={{ fontSize: "0.6875rem" }}>Sold Out</span>}
+          {accessStatus === "active" && <span className="badge badge-green" style={{ fontSize: "0.6875rem" }}>✓ Access</span>}
         </div>
-
-        {/* Duration badge */}
-        <div className="absolute bottom-2 left-2">
-          <span className="px-2 py-0.5 text-xs bg-black/60 text-gray-300 rounded-full backdrop-blur-sm">
-            {formatDuration(durationMs)}
+        {/* Duration */}
+        <div style={{ position: "absolute", bottom: "0.625rem", left: "0.625rem" }}>
+          <span style={{ fontSize: "0.75rem", background: "rgba(0,0,0,0.65)", color: "#cbd5e1", padding: "0.25rem 0.625rem", borderRadius: "9999px", backdropFilter: "blur(4px)" }}>
+            {fmtDuration(durationMs)}
           </span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-3">
+      <div style={{ padding: "1.125rem" }} className="stack-sm">
         <div>
-          <h3 className="font-semibold text-white text-sm line-clamp-2 leading-snug">
-            {title}
-          </h3>
-          <p className="text-xs text-gray-500 mt-1">
-            by {formatAddress(creatorAddress)}
-          </p>
+          <h3 className="line-clamp-2" style={{ fontWeight: 600, color: "#f8fafc", fontSize: "0.9375rem", lineHeight: 1.4 }}>{title}</h3>
+          <p style={{ fontSize: "0.75rem", color: "#475569", marginTop: "0.25rem" }}>by {fmtAddr(creatorAddress)}</p>
         </div>
 
-        {/* Price & Date */}
-        <div className="flex items-center justify-between text-xs text-gray-400">
-          <span className="text-purple-300 font-medium">
-            {formatSui(priceMist)} SUI
-          </span>
-          <span>{formatDate(createdAt)}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#a855f7" }}>{formatSui(priceMist)} SUI</span>
+          <span style={{ fontSize: "0.75rem", color: "#475569" }}>{fmtDate(createdAt)}</span>
         </div>
 
-        {/* Expiry countdown */}
         {accessStatus === "active" && expiresAt && (
-          <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-2 py-1 text-center">
-            ⏱ {formatExpiry(expiresAt)}
+          <div className="badge badge-green" style={{ width: "100%", justifyContent: "center", fontSize: "0.75rem" }}>
+            ⏱ {fmtExpiry(expiresAt)}
           </div>
         )}
 
-        {/* Action button */}
-        {getActionButton()}
+        {renderAction()}
 
-        {/* ── Admin disable/enable section ─────────────────────────────── */}
+        {/* Admin controls */}
         {isAdmin && (
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            {showReasonInput && !isDisabled ? (
-              <div className="space-y-2">
+          <div style={{ paddingTop: "0.75rem", borderTop: "1px solid rgba(255,255,255,0.07)" }} className="stack-xs">
+            {showReason && !isDisabled ? (
+              <>
                 <input
                   type="text"
                   value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="Reason for disabling (optional)"
-                  className="w-full px-3 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-red-500/50"
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="Reason (optional)"
+                  className="input"
+                  style={{ fontSize: "0.8125rem", padding: "0.5rem 0.75rem" }}
                   maxLength={200}
                 />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleDisableToggle(true)}
-                    disabled={disabling}
-                    className="flex-1 px-3 py-1.5 text-xs bg-red-600/80 hover:bg-red-600 text-white rounded-lg transition-all disabled:opacity-50"
-                  >
-                    {disabling ? "Disabling..." : "Confirm Disable"}
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button onClick={() => handleDisable(true)} disabled={disabling} className="btn btn-danger btn-sm" style={{ flex: 1 }}>
+                    {disabling ? "..." : "Confirm Disable"}
                   </button>
-                  <button
-                    onClick={() => {
-                      setShowReasonInput(false);
-                      setReason("");
-                    }}
-                    className="px-3 py-1.5 text-xs border border-white/10 text-gray-400 hover:text-white rounded-lg transition-all"
-                  >
+                  <button onClick={() => { setShowReason(false); setReason(""); }} className="btn btn-outline btn-sm">
                     Cancel
                   </button>
                 </div>
-              </div>
+              </>
             ) : (
               <button
-                onClick={() =>
-                  isDisabled
-                    ? handleDisableToggle(false)
-                    : handleDisableToggle(true)
-                }
+                onClick={() => isDisabled ? handleDisable(false) : handleDisable(true)}
                 disabled={disabling}
-                className={`w-full px-3 py-1.5 text-xs font-medium rounded-lg transition-all disabled:opacity-50 ${
-                  isDisabled
-                    ? "bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30"
-                    : "bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30"
-                }`}
+                className={`btn btn-sm btn-full ${isDisabled ? "btn-success" : "btn-danger"}`}
               >
-                {disabling
-                  ? "Updating..."
-                  : isDisabled
-                  ? "🟢 Re-enable Campaign"
-                  : "🔴 Disable Campaign"}
+                {disabling ? "Updating..." : isDisabled ? "🟢 Re-enable Campaign" : "🔴 Disable Campaign"}
               </button>
             )}
-            <p className="text-xs text-gray-600 text-center">Admin only</p>
+            <p style={{ fontSize: "0.6875rem", color: "#334155", textAlign: "center" }}>Admin only</p>
           </div>
         )}
       </div>

@@ -16,49 +16,40 @@ export function WalletStatus({ email, suiAddress }: WalletStatusProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const formatAddress = (addr: string) =>
-    `${addr.slice(0, 10)}...${addr.slice(-8)}`;
-
   return (
-    <div className="glass-card rounded-xl p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-        <span className="text-sm text-gray-400">Connected via zkLogin</span>
+    <div className="card" style={{ padding: "1.25rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#4ade80", display: "inline-block" }} className="animate-pulse" />
+        <span style={{ fontSize: "0.8125rem", color: "#64748b" }}>Connected via zkLogin</span>
       </div>
 
-      <div className="space-y-2">
+      <div className="stack-sm">
         <div>
-          <p className="text-xs text-gray-500 mb-1">Email</p>
-          <p className="text-sm text-white">{email}</p>
+          <p style={{ fontSize: "0.75rem", color: "#475569", marginBottom: "0.25rem" }}>Email</p>
+          <p style={{ fontSize: "0.875rem", color: "#f8fafc", fontWeight: 500 }}>{email}</p>
         </div>
-
         <div>
-          <p className="text-xs text-gray-500 mb-1">Sui Address (Testnet)</p>
-          <div className="flex items-center gap-2">
-            <code className="text-xs text-purple-300 font-mono bg-purple-500/10 px-2 py-1 rounded">
-              {formatAddress(suiAddress)}
+          <p style={{ fontSize: "0.75rem", color: "#475569", marginBottom: "0.25rem" }}>Sui Address (Testnet)</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <code className="mono" style={{ flex: 1, fontSize: "0.75rem" }}>
+              {suiAddress.slice(0, 10)}...{suiAddress.slice(-8)}
             </code>
             <button
               onClick={copyAddress}
-              className="text-xs text-gray-400 hover:text-white transition-colors"
-              title="Copy full address"
+              style={{ fontSize: "0.75rem", color: copied ? "#4ade80" : "#64748b", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap", transition: "color 0.15s" }}
             >
-              {copied ? (
-                <span className="text-green-400">✓ Copied</span>
-              ) : (
-                <span>Copy</span>
-              )}
+              {copied ? "✓ Copied" : "Copy"}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="pt-2 border-t border-white/10">
+      <div style={{ marginTop: "1rem", paddingTop: "0.875rem", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
         <a
           href={`https://suiexplorer.com/address/${suiAddress}?network=testnet`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+          style={{ fontSize: "0.8125rem", color: "#6366f1" }}
         >
           View on Sui Explorer →
         </a>
