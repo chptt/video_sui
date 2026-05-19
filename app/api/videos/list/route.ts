@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
     if (includeSoldOut || includeDisabled) {
       // Return broader set from registry directly
       const registry = await getLatestRegistry();
-      let entries = registry.videos;
+      const allEntries = Array.isArray(registry.videos) ? registry.videos : [];
+      let entries = [...allEntries];
 
       if (!includeSoldOut) {
         entries = entries.filter((v) => !v.isSoldOut && v.status === "active");

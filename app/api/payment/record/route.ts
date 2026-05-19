@@ -152,12 +152,13 @@ export async function POST(req: NextRequest) {
       const registry = await import("@/lib/pinata").then((m) =>
         m.getLatestRegistry()
       );
-      const entry = registry.videos.find((v) => v.videoId === videoId);
+      const videos = Array.isArray(registry.videos) ? registry.videos : [];
+      const entry = videos.find((v) => v.videoId === videoId);
       if (entry) {
         entry.cid = newCid;
         entry.status = updatedMetadata.status;
         entry.isSoldOut = updatedMetadata.isSoldOut;
-        await uploadJsonToPinata(registry, "private-tube-registry-latest");
+        await uploadJsonToPinata({ ...registry, videos }, "private-tube-registry-latest");
       }
 
       return NextResponse.json({

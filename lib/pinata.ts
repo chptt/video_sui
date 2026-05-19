@@ -194,18 +194,28 @@ const REGISTRY_NAME = "private-tube-registry-latest";
 
 /**
  * Get the latest video registry from Pinata
+ * Always returns a valid Registry object with a videos array.
  */
 export async function getLatestRegistry(): Promise<Registry> {
-  const latest = await findLatestFileByMetadataName(REGISTRY_NAME);
-
-  if (!latest) {
-    return { videos: [], updatedAt: new Date().toISOString() };
-  }
+  const emptyRegistry: Registry = { videos: [], updatedAt: new Date().toISOString() };
 
   try {
-    return await getJsonFromCid<Registry>(latest.cid);
+    const latest = await findLatestFileByMetadataName(REGISTRY_NAME);
+    if (!latest) return emptyRegistry;
+
+    const data = await getJsonFromCid<unknown>(latest.cid);
+
+    // Defensive: ensure the fetched data has a valid videos array
+    if (!data || typeof data !== "object") return emptyRegistry;
+    const raw = data as Record<string, unknown>;
+    if (!Array.isArray(raw.videos)) return emptyRegistry;
+
+    return {
+      videos: raw.videos as RegistryEntry[],
+      updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
+    };
   } catch {
-    return { videos: [], updatedAt: new Date().toISOString() };
+    return emptyRegistry;
   }
 }
 
@@ -216,6 +226,11 @@ export async function updateVideoRegistry(
   newEntry: RegistryEntry
 ): Promise<string> {
   const registry = await getLatestRegistry();
+
+  // Ensure videos array exists (defensive)
+  if (!Array.isArray(registry.videos)) {
+    registry.videos = [];
+  }
 
   // Replace existing entry or append
   const idx = registry.videos.findIndex((v) => v.videoId === newEntry.videoId);
@@ -240,7 +255,8 @@ export async function getVideoMetadata(
   videoId: string
 ): Promise<{ metadata: VideoMetadata; cid: string } | null> {
   const registry = await getLatestRegistry();
-  const entry = registry.videos.find((v) => v.videoId === videoId);
+  const videos = Array.isArray(registry.videos) ? registry.videos : [];
+  const entry = videos.find((v) => v.videoId === videoId);
 
   if (!entry) return null;
 
@@ -272,14 +288,15 @@ export async function updateVideoMetadata(
 
   // Update registry with new CID
   const registry = await getLatestRegistry();
-  const entry = registry.videos.find((v) => v.videoId === videoId);
+  const videos = Array.isArray(registry.videos) ? registry.videos : [];
+  const entry = videos.find((v) => v.videoId === videoId);
   if (entry) {
     entry.cid = newCid;
     entry.status = updated.status;
     entry.isSoldOut = updated.isSoldOut;
   }
 
-  await uploadJsonToPinata(registry, REGISTRY_NAME);
+  await uploadJsonToPinata({ ...registry, videos }, REGISTRY_NAME);
 
   return newCid;
 }
@@ -349,8 +366,9 @@ export async function getActiveVideoByCreatorEmail(
   creatorEmail: string
 ): Promise<RegistryEntry | null> {
   const registry = await getLatestRegistry();
+  const videos = Array.isArray(registry.videos) ? registry.videos : [];
   return (
-    registry.videos.find(
+    videos.find(
       (v) =>
         v.creatorEmail?.toLowerCase() === creatorEmail.toLowerCase() &&
         v.status === "active" &&

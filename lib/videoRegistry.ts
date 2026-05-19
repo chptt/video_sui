@@ -204,7 +204,8 @@ export async function getSafeVideoMetadata(
  */
 export async function getActiveVideos(): Promise<SafeVideoMetadata[]> {
   const registry = await getLatestRegistry();
-  const activeEntries = registry.videos.filter(
+  const allVideos = Array.isArray(registry.videos) ? registry.videos : [];
+  const activeEntries = allVideos.filter(
     (v) => v.status === "active" && !v.isSoldOut && !v.isDisabled
   );
 
@@ -243,7 +244,8 @@ export async function getCreatorVideos(
   creatorAddress: string
 ): Promise<SafeVideoMetadata[]> {
   const registry = await getLatestRegistry();
-  const creatorEntries = registry.videos.filter(
+  const allVideos = Array.isArray(registry.videos) ? registry.videos : [];
+  const creatorEntries = allVideos.filter(
     (v) => v.creatorAddress.toLowerCase() === creatorAddress.toLowerCase()
   );
 
