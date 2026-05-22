@@ -25,6 +25,7 @@ export default function MarketplacePage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [lastTx, setLastTx] = useState<string | null>(null);
   const [showDisabled, setShowDisabled] = useState(false);
+  const [skipNextAccessFetch, setSkipNextAccessFetch] = useState(false);
 
   const fetchVideos = useCallback(async (includeDisabled = false) => {
     try {
@@ -53,7 +54,16 @@ export default function MarketplacePage() {
     fetchVideos();
   }, [fetchVideos]);
 
-  useEffect(() => { if (user && videos.length > 0) fetchAccess(videos.map(v => v.videoId)); }, [user, videos, fetchAccess]);
+  useEffect(() => {
+    if (user && videos.length > 0) {
+      if (skipNextAccessFetch) {
+        // Skip this fetch — access was just set optimistically after payment
+        setSkipNextAccessFetch(false);
+        return;
+      }
+      fetchAccess(videos.map(v => v.videoId));
+    }
+  }, [user, videos, fetchAccess, skipNextAccessFetch]);
   useEffect(() => { if (user?.isAdmin) fetchVideos(showDisabled); }, [showDisabled, user, fetchVideos]);
 
   const handlePaymentSuccess = async (videoId: string, txDigest: string) => {
@@ -66,9 +76,24 @@ export default function MarketplacePage() {
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Failed to record payment"); return; }
+
       setLastTx(txDigest);
-      toast.success("Access granted! You can now watch the video.");
-      setAccessMap(p => ({ ...p, [videoId]: { hasAccess: true, expiresAt: data.access.expiresAt, isExpired: false } }));
+      toast.success("Access granted! Click Watch Now to start watching.");
+
+      // Optimistically set access — do NOT re-fetch access from Pinata immediately
+      // because IPFS propagation can take a few seconds and would overwrite this.
+      setAccessMap(p => ({
+        ...p,
+        [videoId]: {
+          hasAccess: true,
+          expiresAt: data.access.expiresAt,
+          isExpired: false,
+        },
+      }));
+
+      // Only re-fetch the video list (for revenue updates), not access
+      // Use a flag to prevent the fetchAccess useEffect from firing
+      setSkipNextAccessFetch(true);
       fetchVideos(showDisabled);
     } catch { toast.error("Failed to record payment. Contact support with your tx digest."); }
     finally { setProcessingId(null); }
