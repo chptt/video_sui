@@ -19,12 +19,14 @@ export interface AccessStatus {
 
 /**
  * Check if a viewer has active access to a video
+ * Pass viewerEmail for the email-based fallback lookup (handles wallet address mismatches)
  */
 export async function checkAccess(
   viewerAddress: string,
-  videoId: string
+  videoId: string,
+  viewerEmail?: string
 ): Promise<AccessStatus> {
-  const anyRecord = await findAnyAccess(viewerAddress, videoId);
+  const anyRecord = await findAnyAccess(viewerAddress, videoId, viewerEmail);
 
   if (!anyRecord) {
     return {

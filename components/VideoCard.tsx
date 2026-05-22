@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatSui } from "@/lib/pricing";
 import { toast } from "sonner";
-import { PayButton } from "./PayButton";
 
 interface VideoCardProps {
   videoId: string;
@@ -19,8 +18,6 @@ interface VideoCardProps {
   thumbnailUrl?: string;
   accessStatus?: "none" | "active" | "expired";
   expiresAt?: string | null;
-  onPaymentSuccess?: (videoId: string, txDigest: string) => void;
-  isPurchasing?: boolean;
   isAdmin?: boolean;
   onDisableToggle?: (videoId: string, disable: boolean) => void;
 }
@@ -28,8 +25,8 @@ interface VideoCardProps {
 export function VideoCard({
   videoId, title, creatorAddress, priceMist, durationMs,
   isSoldOut, isDisabled, status, createdAt, thumbnailUrl,
-  accessStatus = "none", expiresAt, onPaymentSuccess,
-  isPurchasing = false, isAdmin = false, onDisableToggle,
+  accessStatus = "none", expiresAt,
+  isAdmin = false, onDisableToggle,
 }: VideoCardProps) {
   const [imgError, setImgError] = useState(false);
   const [disabling, setDisabling] = useState(false);
@@ -77,7 +74,6 @@ export function VideoCard({
         🚫 Disabled by Admin
       </div>
     );
-    // Show Watch Now whenever access is active — even if expiresAt is null
     if (accessStatus === "active") return (
       <Link href={`/watch/${videoId}`} className="btn btn-success btn-full">
         ▶ Watch Now
@@ -88,9 +84,10 @@ export function VideoCard({
         <div className="badge badge-yellow" style={{ width: "100%", justifyContent: "center", padding: "0.5rem" }}>
           Access Expired
         </div>
-        {!isSoldOut && onPaymentSuccess && (
-          <PayButton videoId={videoId} priceMist={priceMist} creatorAddress={creatorAddress}
-            onSuccess={(d) => onPaymentSuccess(videoId, d)} label="Renew Access" />
+        {!isSoldOut && (
+          <Link href={`/watch/${videoId}`} className="btn btn-primary btn-full">
+            🔄 Renew Access
+          </Link>
         )}
       </div>
     );
@@ -99,13 +96,10 @@ export function VideoCard({
         🔒 Sold Out
       </div>
     );
-    if (onPaymentSuccess) return (
-      <PayButton videoId={videoId} priceMist={priceMist} creatorAddress={creatorAddress}
-        onSuccess={(d) => onPaymentSuccess(videoId, d)} disabled={isPurchasing} />
-    );
+    // Not purchased yet — link to watch page where payment happens
     return (
-      <Link href="/marketplace" className="btn btn-primary btn-full">
-        View in Marketplace
+      <Link href={`/watch/${videoId}`} className="btn btn-primary btn-full">
+        🔒 Buy &amp; Watch
       </Link>
     );
   };

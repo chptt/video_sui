@@ -7,8 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import { validatePaymentInput } from "@/lib/validation";
-import { getVideoMetadata, updateVideoMetadata, uploadJsonToPinata, updateVideoRegistry } from "@/lib/pinata";
-import { createPurchaseRecord, isPurchaseDuplicate } from "@/lib/pinata";
+import { getVideoMetadata, updateVideoMetadata, createPurchaseRecord, isPurchaseDuplicate } from "@/lib/pinata";
 import { grantAccess } from "@/lib/accessStore";
 import { mistToUsd, calculateFees } from "@/lib/pricing";
 import { v4 as uuidv4 } from "uuid";
@@ -128,38 +127,17 @@ export async function POST(req: NextRequest) {
       const revenueCapUsd = metadata.revenueCapUsd;
       const isSoldOut = newGrossRevenue >= revenueCapUsd;
 
-      const updatedMetadata = {
+      // Upload new video metadata version and update registry atomically
+      await updateVideoMetadata(videoId, {
         totalGrossRevenueUsd: newGrossRevenue,
         totalCreatorRevenueUsd: newCreatorRevenue,
         totalPlatformRevenueUsd: newPlatformRevenue,
         purchaseCount: newPurchaseCount,
         isSoldOut,
-        status: isSoldOut
-          ? ("sold_out" as const)
-          : ("active" as const),
+        status: isSoldOut ? ("sold_out" as const) : ("active" as const),
         removedReason: isSoldOut ? "Revenue cap reached" : null,
         removedAt: isSoldOut ? new Date().toISOString() : null,
-      };
-
-      // Upload new video metadata version
-      const updatedVideo = { ...metadata, ...updatedMetadata };
-      const newCid = await uploadJsonToPinata(
-        updatedVideo,
-        `video-metadata-${videoId}`
-      );
-
-      // Update registry with new CID and status
-      const registry = await import("@/lib/pinata").then((m) =>
-        m.getLatestRegistry()
-      );
-      const videos = Array.isArray(registry.videos) ? registry.videos : [];
-      const entry = videos.find((v) => v.videoId === videoId);
-      if (entry) {
-        entry.cid = newCid;
-        entry.status = updatedMetadata.status;
-        entry.isSoldOut = updatedMetadata.isSoldOut;
-        await uploadJsonToPinata({ ...registry, videos }, "private-tube-registry-latest");
-      }
+      });
 
       return NextResponse.json({
         success: true,

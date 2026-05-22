@@ -22,10 +22,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [accessMap, setAccessMap] = useState<AccessMap>({});
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  const [lastTx, setLastTx] = useState<string | null>(null);
   const [showDisabled, setShowDisabled] = useState(false);
-  const [skipNextAccessFetch, setSkipNextAccessFetch] = useState(false);
 
   const fetchVideos = useCallback(async (includeDisabled = false) => {
     try {
@@ -55,49 +52,10 @@ export default function MarketplacePage() {
   }, [fetchVideos]);
 
   useEffect(() => {
-    if (user && videos.length > 0) {
-      if (skipNextAccessFetch) {
-        // Skip this fetch — access was just set optimistically after payment
-        setSkipNextAccessFetch(false);
-        return;
-      }
-      fetchAccess(videos.map(v => v.videoId));
-    }
-  }, [user, videos, fetchAccess, skipNextAccessFetch]);
+    if (user && videos.length > 0) fetchAccess(videos.map(v => v.videoId));
+  }, [user, videos, fetchAccess]);
+
   useEffect(() => { if (user?.isAdmin) fetchVideos(showDisabled); }, [showDisabled, user, fetchVideos]);
-
-  const handlePaymentSuccess = async (videoId: string, txDigest: string) => {
-    if (!user) { toast.error("Please login first"); return; }
-    setProcessingId(videoId);
-    try {
-      const res = await fetch("/api/payment/record", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId, txDigest }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Failed to record payment"); return; }
-
-      setLastTx(txDigest);
-      toast.success("Access granted! Click Watch Now to start watching.");
-
-      // Optimistically set access — do NOT re-fetch access from Pinata immediately
-      // because IPFS propagation can take a few seconds and would overwrite this.
-      setAccessMap(p => ({
-        ...p,
-        [videoId]: {
-          hasAccess: true,
-          expiresAt: data.access.expiresAt,
-          isExpired: false,
-        },
-      }));
-
-      // Only re-fetch the video list (for revenue updates), not access
-      // Use a flag to prevent the fetchAccess useEffect from firing
-      setSkipNextAccessFetch(true);
-      fetchVideos(showDisabled);
-    } catch { toast.error("Failed to record payment. Contact support with your tx digest."); }
-    finally { setProcessingId(null); }
-  };
 
   const handleDisableToggle = (videoId: string, disabled: boolean) => {
     setVideos(p => p.map(v => v.videoId === videoId ? { ...v, isDisabled: disabled } : v));
@@ -142,20 +100,6 @@ export default function MarketplacePage() {
           <div className="alert alert-warning" style={{ marginBottom: "1.5rem" }}>
             <span>🛡️</span>
             Admin view — Disable/Enable buttons are visible only to you
-          </div>
-        )}
-
-        {/* Tx success */}
-        {lastTx && (
-          <div className="alert alert-success" style={{ marginBottom: "1.5rem", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <span>✓</span>
-              <div>
-                <p style={{ fontWeight: 600, color: "#86efac" }}>Payment recorded on Sui testnet</p>
-                <code style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace" }}>{lastTx.slice(0, 44)}...</code>
-              </div>
-            </div>
-            <button onClick={() => setLastTx(null)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "1rem" }}>✕</button>
           </div>
         )}
 
@@ -207,8 +151,6 @@ export default function MarketplacePage() {
                   thumbnailUrl={video.thumbnailUrl}
                   accessStatus={getAccessStatus(video.videoId)}
                   expiresAt={accessMap[video.videoId]?.expiresAt}
-                  onPaymentSuccess={user && !video.isDisabled ? handlePaymentSuccess : undefined}
-                  isPurchasing={processingId === video.videoId}
                   isAdmin={user?.isAdmin}
                   onDisableToggle={handleDisableToggle}
                 />

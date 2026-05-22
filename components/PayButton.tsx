@@ -1,20 +1,21 @@
 "use client";
 
 /**
- * PayButton — handles SUI payment via Slush wallet.
+ * PayButton — Slush Wallet Payment
  *
- * Uses coinWithBalance intent (recommended for dApp Kit v2).
- * Works with both old and new Slush wallet versions.
- *
- * Dev (localhost): mock payment, no wallet needed.
- * Production: Slush wallet signs the transaction.
+ * Flow:
+ * 1. If wallet not connected → show "Connect Slush Wallet" button
+ * 2. Once connected → show price confirmation
+ * 3. On confirm → build a SUI transfer Transaction and sign+execute via Slush
+ * 4. On success → call onSuccess(txDigest)
  */
 
-import { useState, useRef, useEffect } from "react";
-import { useDAppKit, useCurrentAccount, useWallets } from "@mysten/dapp-kit-react";
-import { Transaction, coinWithBalance } from "@mysten/sui/transactions";
+import { useState } from "react";
 import { toast } from "sonner";
 import { formatSui } from "@/lib/pricing";
+import { useWallets, useWalletConnection, useDAppKit } from "@mysten/dapp-kit-react";
+import { dAppKit } from "@/components/SuiProviders";
+import { Transaction } from "@mysten/sui/transactions";
 
 interface PayButtonProps {
   videoId: string;
@@ -25,8 +26,6 @@ interface PayButtonProps {
   label?: string;
 }
 
-const PLATFORM_FEE_BPS = 1000n;
-
 export function PayButton({
   videoId,
   priceMist,
@@ -35,235 +34,177 @@ export function PayButton({
   disabled = false,
   label,
 }: PayButtonProps) {
-  const dAppKit = useDAppKit();
-  const account = useCurrentAccount();
-  const wallets = useWallets();
   const [paying, setPaying] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [showWalletPicker, setShowWalletPicker] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!showWalletPicker) return;
-    const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setShowWalletPicker(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showWalletPicker]);
+  const wallets = useWallets({ dAppKit });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const connection = useWalletConnection({ dAppKit: dAppKit as any });
+  const kit = useDAppKit(dAppKit);
 
-  const isDev =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1");
+  const isConnected = connection.isConnected;
+  const priceSui = (Number(BigInt(priceMist)) / 1_000_000_000).toFixed(4);
+  const btnLabel = label ?? `Pay ${formatSui(priceMist)} SUI`;
 
-  const connectWallet = async (wallet: ReturnType<typeof useWallets>[number]) => {
+  // ── Step 1: Connect wallet ────────────────────────────────────────────────
+  const handleConnect = async () => {
+    const slush = wallets.find(
+      (w) =>
+        w.name.toLowerCase().includes("slush") ||
+        w.name.toLowerCase().includes("sui wallet")
+    ) ?? wallets[0];
+
+    if (!slush) {
+      toast.error("No Sui wallet found. Please install Slush wallet.");
+      return;
+    }
+
     setConnecting(true);
     try {
-      await dAppKit.connectWallet({ wallet });
-      setShowWalletPicker(false);
-      toast.success(`${wallet.name} connected — click Pay to continue`);
-    } catch {
-      toast.error("Failed to connect wallet");
+      await kit.connectWallet({ wallet: slush });
+      toast.success("Wallet connected!");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.toLowerCase().includes("cancel") && !msg.toLowerCase().includes("reject")) {
+        toast.error("Failed to connect wallet. Please try again.");
+      }
     } finally {
       setConnecting(false);
     }
   };
 
-  const handlePay = async () => {
-    // ── Dev mock ───────────────────────────────────────────────────────────
-    if (isDev) {
-      setPaying(true);
-      await new Promise((r) => setTimeout(r, 800));
-      const mockDigest = `MOCK_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      toast.info("Dev mode: mock payment");
-      onSuccess(mockDigest);
-      setPaying(false);
-      return;
-    }
+  // ── Step 2: Show confirm dialog ───────────────────────────────────────────
+  const handleClickPay = () => {
+    setShowConfirm(true);
+  };
 
-    // ── Need wallet connected ──────────────────────────────────────────────
-    if (!account) {
-      setShowWalletPicker(true);
-      return;
-    }
-
-    const treasuryAddress = process.env.NEXT_PUBLIC_PLATFORM_TREASURY_ADDRESS;
-    if (!treasuryAddress) {
-      toast.error("Platform treasury not configured");
-      return;
-    }
-
+  // ── Step 3: Build tx, sign & execute via Slush ────────────────────────────
+  const handleConfirm = async () => {
+    setShowConfirm(false);
     setPaying(true);
     try {
-      const totalMist = BigInt(priceMist);
-      const feeMist = (totalMist * PLATFORM_FEE_BPS) / 10000n;
-      const creatorMist = totalMist - feeMist;
-
-      // Build transaction using coinWithBalance (works with all wallet versions)
       const tx = new Transaction();
 
-      // Transfer to creator (90%)
-      tx.transferObjects(
-        [coinWithBalance({ balance: creatorMist })],
-        tx.pure.address(creatorAddress)
-      );
+      // Transfer priceMist MIST to the creator
+      const [coin] = tx.splitCoins(tx.gas, [BigInt(priceMist)]);
+      tx.transferObjects([coin], creatorAddress);
 
-      // Transfer to platform treasury (10%)
-      tx.transferObjects(
-        [coinWithBalance({ balance: feeMist })],
-        tx.pure.address(treasuryAddress)
-      );
+      const result = await kit.signAndExecuteTransaction({ transaction: tx });
+      // result is a discriminated union: { $kind: "Transaction", Transaction: { digest, ... } }
+      const digest =
+        result.$kind === "Transaction"
+          ? result.Transaction.digest
+          : (result as unknown as { digest: string }).digest;
 
-      const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
-
-      // Extract digest from result union type
-      let digest: string | null = null;
-      if (result && typeof result === "object") {
-        if ("digest" in result && typeof result.digest === "string") {
-          digest = result.digest;
-        } else if (result.$kind === "Transaction" && result.Transaction?.digest) {
-          digest = result.Transaction.digest;
-        }
-      }
-
-      if (!digest) {
-        toast.error("Could not get transaction digest from wallet");
-        return;
-      }
-
-      toast.success("Payment confirmed!");
+      toast.success("Payment confirmed on Sui testnet!");
       onSuccess(digest);
-    } catch (err) {
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error("Payment error:", msg);
-      if (
-        msg.toLowerCase().includes("reject") ||
-        msg.toLowerCase().includes("cancel") ||
-        msg.toLowerCase().includes("denied") ||
-        msg.toLowerCase().includes("user rejected")
-      ) {
-        toast.info("Payment cancelled");
-      } else if (msg.toLowerCase().includes("insufficient")) {
-        toast.error("Insufficient SUI balance. Get testnet SUI from faucet.sui.io");
+      if (msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("reject")) {
+        toast.info("Payment cancelled.");
       } else {
-        toast.error(`Payment failed: ${msg.slice(0, 100)}`);
+        console.error("[PayButton] tx error:", err);
+        toast.error("Payment failed. Please try again.");
       }
     } finally {
       setPaying(false);
     }
   };
 
-  const btnLabel = label ?? `Pay ${formatSui(priceMist)} SUI`;
-
-  return (
-    <div style={{ position: "relative" }}>
+  // ── Render: not connected ─────────────────────────────────────────────────
+  if (!isConnected) {
+    return (
       <button
-        onClick={handlePay}
-        disabled={disabled || paying || connecting}
+        onClick={handleConnect}
+        disabled={disabled || connecting}
         className="btn btn-primary btn-full"
         style={{ gap: "0.625rem" }}
       >
-        {paying ? (
+        {connecting ? (
           <>
-            <div className="spinner spinner-sm" style={{ borderColor: "rgba(255,255,255,0.2)", borderTopColor: "#fff" }} />
-            Waiting for Slush...
-          </>
-        ) : connecting ? (
-          <>
-            <div className="spinner spinner-sm" style={{ borderColor: "rgba(255,255,255,0.2)", borderTopColor: "#fff" }} />
+            <div
+              className="spinner spinner-sm"
+              style={{ borderColor: "rgba(255,255,255,0.2)", borderTopColor: "#fff" }}
+            />
             Connecting...
           </>
         ) : (
           <>
             <SuiIcon />
-            {!account && !isDev ? "Connect Slush to Pay" : btnLabel}
+            Connect Slush Wallet
           </>
         )}
       </button>
+    );
+  }
 
-      {account && !paying && (
-        <p style={{ fontSize: "0.75rem", textAlign: "center", color: "#475569", marginTop: "0.375rem" }}>
-          via{" "}
-          <span style={{ color: "#a855f7", fontFamily: "monospace" }}>
-            {account.address.slice(0, 6)}...{account.address.slice(-4)}
-          </span>
-          {" · "}
-          <button
-            onClick={() => dAppKit.disconnectWallet()}
-            style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "0.75rem", padding: 0 }}
-          >
-            disconnect
-          </button>
+  // ── Render: confirm dialog ────────────────────────────────────────────────
+  if (showConfirm) {
+    const account = connection.isConnected ? connection.account : null;
+    return (
+      <div
+        style={{
+          background: "rgba(168,85,247,0.08)",
+          border: "1px solid rgba(168,85,247,0.25)",
+          borderRadius: "0.875rem",
+          padding: "1rem",
+        }}
+      >
+        <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "#f8fafc", marginBottom: "0.375rem" }}>
+          Confirm Payment
         </p>
-      )}
-
-      {/* Wallet picker */}
-      {showWalletPicker && (
-        <div
-          ref={pickerRef}
-          style={{
-            position: "absolute",
-            bottom: "calc(100% + 0.5rem)",
-            left: 0, right: 0, zIndex: 50,
-            background: "#0f0a2e",
-            border: "1px solid rgba(168,85,247,0.3)",
-            borderRadius: "0.875rem",
-            padding: "1rem",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-          }}
-        >
-          <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#f8fafc", marginBottom: "0.75rem" }}>
-            Connect Slush wallet to pay
+        {account && (
+          <p style={{ fontSize: "0.75rem", color: "#475569", marginBottom: "0.25rem" }}>
+            From: <code style={{ color: "#94a3b8" }}>{account.address.slice(0, 10)}…{account.address.slice(-6)}</code>
           </p>
-
-          {wallets.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "0.75rem 0" }}>
-              <p style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "0.625rem" }}>No wallets detected</p>
-              <a href="https://slush.app" target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ display: "inline-flex" }}>
-                Install Slush →
-              </a>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {wallets.map((wallet) => (
-                <button
-                  key={wallet.name}
-                  onClick={() => connectWallet(wallet)}
-                  disabled={connecting}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "0.75rem",
-                    padding: "0.625rem 0.875rem",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: "0.625rem",
-                    cursor: "pointer", width: "100%", textAlign: "left", transition: "all 0.15s",
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(168,85,247,0.4)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(168,85,247,0.08)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.08)"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)"; }}
-                >
-                  {wallet.icon ? (
-                    <img src={wallet.icon} alt={wallet.name} style={{ width: "28px", height: "28px", borderRadius: "6px" }} />
-                  ) : (
-                    <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "rgba(168,85,247,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#a855f7", fontWeight: 700, fontSize: "0.875rem" }}>
-                      {wallet.name[0]}
-                    </div>
-                  )}
-                  <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "#f8fafc" }}>{wallet.name}</span>
-                  <span style={{ marginLeft: "auto", color: "#475569" }}>→</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <p style={{ fontSize: "0.75rem", color: "#334155", marginTop: "0.75rem", textAlign: "center" }}>
-            Unlock Slush with your password, then click the wallet above
-          </p>
+        )}
+        <p style={{ fontSize: "0.8125rem", color: "#94a3b8", marginBottom: "0.875rem" }}>
+          Pay <strong style={{ color: "#a855f7" }}>{priceSui} SUI</strong> for time-limited access on Sui testnet
+        </p>
+        <div style={{ display: "flex", gap: "0.625rem" }}>
+          <button
+            onClick={handleConfirm}
+            className="btn btn-primary btn-sm"
+            style={{ flex: 1 }}
+          >
+            ✓ Confirm &amp; Sign
+          </button>
+          <button
+            onClick={() => setShowConfirm(false)}
+            className="btn btn-outline btn-sm"
+            style={{ flex: 1 }}
+          >
+            Cancel
+          </button>
         </div>
+      </div>
+    );
+  }
+
+  // ── Render: pay button (connected) ────────────────────────────────────────
+  return (
+    <button
+      onClick={handleClickPay}
+      disabled={disabled || paying}
+      className="btn btn-primary btn-full"
+      style={{ gap: "0.625rem" }}
+    >
+      {paying ? (
+        <>
+          <div
+            className="spinner spinner-sm"
+            style={{ borderColor: "rgba(255,255,255,0.2)", borderTopColor: "#fff" }}
+          />
+          Signing transaction...
+        </>
+      ) : (
+        <>
+          <SuiIcon />
+          {btnLabel}
+        </>
       )}
-    </div>
+    </button>
   );
 }
 

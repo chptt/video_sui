@@ -329,10 +329,17 @@ export async function createAccessRecord(
  */
 export async function findActiveAccess(
   viewerAddress: string,
-  videoId: string
+  videoId: string,
+  viewerEmail?: string
 ): Promise<AccessRecord | null> {
-  const name = `access-${viewerAddress}-${videoId}`;
-  const latest = await findLatestFileByMetadataName(name);
+  const addrKey = `access-${viewerAddress}-${videoId}`;
+  const emailKey = viewerEmail
+    ? `access-email-${viewerEmail.replace(/[@.]/g, "_")}-${videoId}`
+    : null;
+
+  const latest =
+    (await findLatestFileByMetadataName(addrKey)) ??
+    (emailKey ? await findLatestFileByMetadataName(emailKey) : null);
 
   if (!latest) return null;
 
@@ -352,13 +359,21 @@ export async function findActiveAccess(
 
 /**
  * Find any access record (including expired) for a viewer+video
+ * Tries by address first, then by email as fallback
  */
 export async function findAnyAccess(
   viewerAddress: string,
-  videoId: string
+  videoId: string,
+  viewerEmail?: string
 ): Promise<AccessRecord | null> {
-  const name = `access-${viewerAddress}-${videoId}`;
-  const latest = await findLatestFileByMetadataName(name);
+  const addrKey = `access-${viewerAddress}-${videoId}`;
+  const emailKey = viewerEmail
+    ? `access-email-${viewerEmail.replace(/[@.]/g, "_")}-${videoId}`
+    : null;
+
+  const latest =
+    (await findLatestFileByMetadataName(addrKey)) ??
+    (emailKey ? await findLatestFileByMetadataName(emailKey) : null);
 
   if (!latest) return null;
 
