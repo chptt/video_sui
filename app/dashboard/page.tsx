@@ -32,10 +32,10 @@ export default function DashboardPage() {
       setLoading(false);
       setVideosLoading(true);
       try {
-        const res = await fetch("/api/videos/list?includeSoldOut=true");
+        const res = await fetch("/api/videos/creator");
         const vData = await res.json();
         if (vData.videos) {
-          setVideos(vData.videos.filter((v: Video) => v.creatorAddress.toLowerCase() === data.user.suiAddress.toLowerCase()));
+          setVideos(vData.videos);
         }
       } catch { /* ignore */ }
       finally { setVideosLoading(false); }

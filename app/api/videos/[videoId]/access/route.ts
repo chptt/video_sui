@@ -31,6 +31,12 @@ export async function GET(
 
       try {
         const record = await getJsonFromCid<AccessRecord>(latest.cid);
+
+        // Validate the record actually belongs to this video
+        if (record.videoId !== videoId) {
+          return NextResponse.json({ hasAccess: false, expiresAt: null, isExpired: false });
+        }
+
         const now = new Date();
         const expiry = new Date(record.accessExpiresAt);
         const isExpired = expiry <= now;

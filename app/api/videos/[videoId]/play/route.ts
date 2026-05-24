@@ -32,6 +32,8 @@ async function findAccessRecord(
 
   try {
     const record = await getJsonFromCid<AccessRecord>(latest.cid);
+    // Validate the record belongs to this video
+    if (record.videoId !== videoId) return null;
     const expiry = new Date(record.accessExpiresAt);
     if (expiry > new Date()) return record;
     return null; // expired
@@ -92,9 +94,20 @@ export async function GET(
       if (!result) return NextResponse.json({ error: "Video not found" }, { status: 404 });
 
       const { metadata } = result;
-      const rawUrl = decryptText(metadata.encryptedUrl, metadata.iv, metadata.authTag);
+
+      let rawUrl: string;
+      try {
+        rawUrl = decryptText(metadata.encryptedUrl, metadata.iv, metadata.authTag);
+      } catch (decryptErr) {
+        console.error("[play] Decryption failed:", decryptErr);
+        return NextResponse.json({ error: "Failed to decrypt video data" }, { status: 500 });
+      }
+
       const ytVideoId = extractYouTubeId(rawUrl);
-      if (!ytVideoId) return NextResponse.json({ error: "Invalid video data" }, { status: 500 });
+      if (!ytVideoId) {
+        console.error("[play] extractYouTubeId failed for decrypted URL:", rawUrl?.slice(0, 60));
+        return NextResponse.json({ error: "Invalid video data" }, { status: 500 });
+      }
 
       return NextResponse.json({
         embedUrl: toEmbedUrl(ytVideoId),

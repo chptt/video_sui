@@ -8,7 +8,6 @@ import {
   getVideoMetadata,
   updateVideoRegistry,
   uploadJsonToPinata,
-  getAnyVideoByCreatorEmail,
   VideoMetadata,
   RegistryEntry,
 } from "./pinata";
@@ -53,15 +52,19 @@ export interface SafeVideoMetadata {
 
 /**
  * Create a new video with encrypted metadata.
- * Enforces one active campaign per creator email.
+ * Enforces one active campaign per creator email (checks registry only, not all Pinata pins).
  */
 export async function createVideo(
   params: CreateVideoParams
 ): Promise<SafeVideoMetadata> {
   const { v4: uuidv4 } = await import("uuid");
 
-  // ── One video per account (lifetime) ───────────────────────────────────────
-  const existing = await getAnyVideoByCreatorEmail(params.creatorEmail);
+  // ── One active video per account (registry-based check only) ──────────────
+  const registry = await getLatestRegistry();
+  const allVideos = Array.isArray(registry.videos) ? registry.videos : [];
+  const existing = allVideos.find(
+    (v) => v.creatorEmail?.toLowerCase() === params.creatorEmail.toLowerCase()
+  );
   if (existing) {
     throw new Error(
       `Your account already has a video ("${existing.title}"). ` +
