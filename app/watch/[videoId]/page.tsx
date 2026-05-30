@@ -105,7 +105,19 @@ export default function WatchPage() {
       });
       const data = await res.json();
 
-      console.log("[WatchPage] Payment record response:", { status: res.status, data });
+      console.log("[WatchPage] Payment record response FULL:", { status: res.status, data });
+
+      // FIRST: Check if data.success is true — regardless of status!
+      if (data.success === true) {
+        console.log("[WatchPage] Got success response! Setting access...");
+        toast.success("Access confirmed!");
+        setAccess({
+          hasAccess: true,
+          expiresAt: data.access?.expiresAt ?? null,
+          isExpired: false,
+        });
+        return;
+      }
 
       if (res.status === 409) {
         // Transaction already processed — access record should exist.
