@@ -1,14 +1,11 @@
 /**
  * GET /api/videos/[videoId]/access
  * Check if the current user has active access to a video
- * NOW VIA SUI BLOCKCHAIN (tamper-proof, non-repudiation!)
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import { checkAccessOnChain } from "@/lib/sui";
-
-const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID || "";
+import { checkAccess } from "@/lib/accessStore";
 
 export async function GET(
   req: NextRequest,
@@ -19,19 +16,13 @@ export async function GET(
       const { videoId } = await params;
       if (!videoId) return NextResponse.json({ error: "Video ID required" }, { status: 400 });
 
-      console.log(`[access] Checking on-chain videoId=${videoId} addr=${user.suiAddress}`);
+      console.log(`[access] Checking access for videoId=${videoId}, addr=${user.suiAddress}, email=${user.email}`);
 
-      const access = await checkAccessOnChain(user.suiAddress, videoId, PACKAGE_ID);
+      const access = await checkAccess(user.suiAddress, videoId, user.email);
 
-      const isExpired = access.expiresAt ? Date.now() > access.expiresAt : false;
+      console.log(`[access] Check result:`, access);
 
-      console.log(`[access] On-chain check result: hasAccess=${access.hasAccess}, isExpired=${isExpired}`);
-
-      return NextResponse.json({
-        hasAccess: access.hasAccess && !isExpired,
-        expiresAt: access.expiresAt ? new Date(access.expiresAt).toISOString() : null,
-        isExpired,
-      });
+      return NextResponse.json(access);
     } catch (err) {
       console.error("Check access error:", err);
       return NextResponse.json({ error: "Failed to check access" }, { status: 500 });

@@ -2,8 +2,6 @@
  * GET /api/videos/[videoId]/play
  * Returns decrypted embed URL only if user has valid access
  * SECURITY: Decryption happens server-side only
- *
- * Now checks access via SUI BLOCKCHAIN EVENTS for tamper-proof, non-repudiation!
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -11,9 +9,7 @@ import { withAuth } from "@/lib/auth";
 import { getVideoMetadata } from "@/lib/pinata";
 import { decryptText } from "@/lib/encryption";
 import { toEmbedUrl, extractYouTubeId } from "@/lib/youtube";
-import { checkAccessOnChain } from "@/lib/sui";
-
-const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID || "";
+import { checkAccess } from "@/lib/accessStore";
 
 export async function GET(
   req: NextRequest,
@@ -25,15 +21,10 @@ export async function GET(
       console.log("[play] Starting play request for:", { videoId, userEmail: user.email, userAddress: user.suiAddress });
       if (!videoId) return NextResponse.json({ error: "Video ID required" }, { status: 400 });
 
-      // 🔒 CHECK ACCESS ON SUI BLOCKCHAIN (tamper-proof!)
-      // Try both the zkLogin address and Slush wallet address (if different)
-      let accessCheck = await checkAccessOnChain(user.suiAddress, videoId, PACKAGE_ID);
-      
-      // If no access with primary address, check if there's a wallet connected (we could look up, but for now, trust the client's optimistic check)
-      console.log("[play] On-chain access check result:", accessCheck);
+      // Check access by email AND address (handles wallet mismatches)
+      const access = await checkAccess(user.suiAddress, videoId, user.email);
 
-      if (!accessCheck.hasAccess) {
-        console.log("[play] No access found on-chain—returning 403");
+      if (!access.hasAccess) {
         return NextResponse.json(
           {
             error: "Access denied",
@@ -43,7 +34,7 @@ export async function GET(
         );
       }
 
-      console.log("[play] Access confirmed via Sui blockchain! Fetching video metadata...");
+      console.log("[play] Access confirmed! Fetching video metadata...");
       const result = await getVideoMetadata(videoId);
       if (!result) return NextResponse.json({ error: "Video not found" }, { status: 404 });
 
@@ -66,7 +57,7 @@ export async function GET(
       console.log("[play] Success! Returning embed URL");
       return NextResponse.json({
         embedUrl: toEmbedUrl(ytVideoId),
-        expiresAt: accessCheck.expiresAt,
+        expiresAt: access.expiresAt,
         title: metadata.title,
       });
     } catch (err) {
