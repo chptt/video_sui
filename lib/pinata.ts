@@ -320,15 +320,27 @@ export async function updateVideoMetadata(
 export async function createAccessRecord(
   accessData: AccessRecord
 ): Promise<string> {
+  console.log("[pinata/createAccessRecord] Starting with data:", {
+    videoId: accessData.videoId,
+    viewerEmail: accessData.viewerEmail,
+    viewerAddress: accessData.viewerAddress
+  });
+  
   // Store by BOTH email and address for maximum lookup compatibility
   const nameByEmail = `access-email-${accessData.viewerEmail.replace(/[@.]/g, "_")}-${accessData.videoId}`;
   const nameByAddr = `access-${accessData.viewerAddress}-${accessData.videoId}`;
+  
+  console.log("[pinata/createAccessRecord] Generated names:", { nameByEmail, nameByAddr });
 
   // Upload once, pin under both names
+  console.log("[pinata/createAccessRecord] Uploading by email name...");
   const cid = await uploadJsonToPinata(accessData, nameByEmail);
+  console.log("[pinata/createAccessRecord] Uploaded by email! CID:", cid);
 
   // Also upload under address-based name for backward compat
+  console.log("[pinata/createAccessRecord] Uploading by address name...");
   await uploadJsonToPinata(accessData, nameByAddr);
+  console.log("[pinata/createAccessRecord] All uploads complete!");
 
   return cid;
 }

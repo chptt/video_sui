@@ -64,6 +64,13 @@ export async function grantAccess(params: {
   platformFeeUsd: number;
   durationMs: number;
 }): Promise<AccessRecord> {
+  console.log("[accessStore/grantAccess] Starting grantAccess with params:", {
+    videoId: params.videoId,
+    viewerEmail: params.viewerEmail,
+    viewerAddress: params.viewerAddress,
+    durationMs: params.durationMs
+  });
+  
   const { v4: uuidv4 } = await import("uuid");
 
   const now = new Date();
@@ -84,7 +91,9 @@ export async function grantAccess(params: {
     createdAt: now.toISOString(),
   };
 
+  console.log("[accessStore/grantAccess] Calling createAccessRecord...");
   await createAccessRecord(accessRecord);
+  console.log("[accessStore/grantAccess] Access record created successfully!");
   return accessRecord;
 }
 

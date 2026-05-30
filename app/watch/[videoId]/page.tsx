@@ -95,6 +95,7 @@ export default function WatchPage() {
   // ── Handle payment success ────────────────────────────────────────────────
   const handlePaymentSuccess = async (txDigest: string) => {
     if (!video) return;
+    console.log("[WatchPage] Payment success! txDigest:", txDigest.slice(0, 20) + "...");
     setPurchasing(true);
     try {
       const res = await fetch("/api/payment/record", {
@@ -104,10 +105,14 @@ export default function WatchPage() {
       });
       const data = await res.json();
 
+      console.log("[WatchPage] Payment record response:", { status: res.status, data });
+
       if (res.status === 409) {
         // Transaction already processed — access record should exist.
         // Use the access from the 409 response if available, otherwise re-check.
+        console.log("[WatchPage] 409 - transaction already processed");
         if (data.access?.hasAccess) {
+          console.log("[WatchPage] 409 has access! Setting access...");
           toast.success("Access confirmed!");
           setAccess({
             hasAccess: true,
@@ -120,6 +125,7 @@ export default function WatchPage() {
         await checkAccess();
         // If still not found after re-check, optimistically grant access —
         // the player's own retry loop will confirm within ~18s.
+        console.log("[WatchPage] Optimistically setting access to true...");
         setAccess((prev) =>
           prev?.hasAccess ? prev : { hasAccess: true, expiresAt: null, isExpired: false }
         );
@@ -132,12 +138,14 @@ export default function WatchPage() {
       }
 
       toast.success("Payment recorded! Preparing your video...");
+      console.log("[WatchPage] Payment recorded successfully! Setting access...");
       setAccess({
         hasAccess: true,
         expiresAt: data.access?.expiresAt ?? null,
         isExpired: false,
       });
-    } catch {
+    } catch (err) {
+      console.error("[WatchPage] Error recording payment:", err);
       toast.error("Failed to record payment. Please contact support with your tx digest.");
     } finally {
       setPurchasing(false);
