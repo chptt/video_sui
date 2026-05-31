@@ -49,8 +49,26 @@ export async function getCampaigns(): Promise<SafeVideoMetadata[]> {
       return [];
     }
 
-    const campaigns = (registryObj.data.content as any).campaigns.fields.contents as any[];
-    const campaignIds = campaigns.map((c) => c.fields.value);
+    const content = (registryObj.data.content as any);
+    let campaignIds: string[] = [];
+
+    if (content.campaigns) {
+      if (content.campaigns.fields?.contents) {
+        const contents = content.campaigns.fields.contents as any[];
+        campaignIds = contents
+          .map((c) => c?.fields?.value || c?.value)
+          .filter((id): id is string => id != null);
+      } else if (content.campaigns.contents) {
+        const contents = content.campaigns.contents as any[];
+        campaignIds = contents
+          .map((c) => c?.fields?.value || c?.value)
+          .filter((id): id is string => id != null);
+      }
+    }
+
+    if (campaignIds.length === 0) {
+      return [];
+    }
 
     const campaignObjects = await suiClient.multiGetObjects({
       ids: campaignIds,
@@ -58,24 +76,33 @@ export async function getCampaigns(): Promise<SafeVideoMetadata[]> {
     });
 
     return campaignObjects
-      .filter((obj) => obj.data?.content?.dataType === "moveObject")
+      .filter((obj) => {
+        if (obj.data?.content?.dataType !== "moveObject") {
+          return false;
+        }
+        const content = obj.data.content as any;
+        if (!content?.fields) {
+          return false;
+        }
+        return true;
+      })
       .map((obj) => {
         const content = obj.data!.content as any;
         const fields = content.fields;
         return {
-          videoId: Buffer.from(fields.video_id).toString(),
+          videoId: fields.video_id ? Buffer.from(fields.video_id).toString() : "",
           campaignId: obj.data!.objectId,
-          title: Buffer.from(fields.title).toString(),
-          description: Buffer.from(fields.description).toString(),
-          creatorAddress: fields.creator,
-          priceMist: fields.price_mist.toString(),
-          priceSui: (Number(fields.price_mist) / 1e9).toFixed(4),
-          durationHours: Number(fields.duration_hours),
-          isDisabled: fields.is_disabled,
-          disabledReason: Buffer.from(fields.disabled_reason).toString() || null,
-          totalPurchases: Number(fields.total_purchases),
-          totalGrossMist: fields.total_gross_mist.toString(),
-          thumbnailVideoId: Buffer.from(fields.thumbnail_video_id).toString(),
+          title: fields.title ? Buffer.from(fields.title).toString() : "",
+          description: fields.description ? Buffer.from(fields.description).toString() : "",
+          creatorAddress: fields.creator || "",
+          priceMist: fields.price_mist?.toString() || "0",
+          priceSui: fields.price_mist ? (Number(fields.price_mist) / 1e9).toFixed(4) : "0",
+          durationHours: Number(fields.duration_hours) || 0,
+          isDisabled: fields.is_disabled || false,
+          disabledReason: fields.disabled_reason ? Buffer.from(fields.disabled_reason).toString() || null : null,
+          totalPurchases: Number(fields.total_purchases) || 0,
+          totalGrossMist: fields.total_gross_mist?.toString() || "0",
+          thumbnailVideoId: fields.thumbnail_video_id ? Buffer.from(fields.thumbnail_video_id).toString() : "",
         };
       });
   } catch (error) {
@@ -102,10 +129,13 @@ export async function getCampaignEncryptedData(campaignId: string): Promise<Camp
 
     const content = obj.data.content as any;
     const fields = content.fields;
+    if (!fields) {
+      return null;
+    }
     return {
-      encryptedUrl: Buffer.from(fields.encrypted_url).toString(),
-      iv: Buffer.from(fields.iv).toString(),
-      authTag: Buffer.from(fields.auth_tag).toString(),
+      encryptedUrl: fields.encrypted_url ? Buffer.from(fields.encrypted_url).toString() : "",
+      iv: fields.iv ? Buffer.from(fields.iv).toString() : "",
+      authTag: fields.auth_tag ? Buffer.from(fields.auth_tag).toString() : "",
     };
   } catch (error) {
     console.error("Error fetching encrypted data:", error);
@@ -129,8 +159,8 @@ export async function checkAccess(campaignId: string, buyerAddress: string): Pro
       parentId: campaignId,
     });
 
-    const accessField = dynamicFields.data.find(
-      (field) => field.name.value === buyerAddress
+    const accessField = dynamicFields.data?.find(
+      (field) => field.name?.value === buyerAddress
     );
 
     if (!accessField) {
@@ -148,11 +178,14 @@ export async function checkAccess(campaignId: string, buyerAddress: string): Pro
 
     const content = accessRecord.data.content as any;
     const fields = content.fields;
-    const expiresAtMs = Number(fields.expiration_timestamp_ms);
+    if (!fields) {
+      return { hasAccess: false, expiresAt: null };
+    }
+    const expiresAtMs = Number(fields.expiration_timestamp_ms) || 0;
     const now = Date.now();
 
     if (expiresAtMs <= now) {
-      return { hasAccess: false, expiresAt: new Date(expiresAtMs).toISOString() };
+      return { hasAccess: false, expiresAt: expiresAtMs > 0 ? new Date(expiresAtMs).toISOString() : null };
     }
 
     return { hasAccess: true, expiresAt: new Date(expiresAtMs).toISOString() };
