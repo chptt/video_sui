@@ -7,7 +7,6 @@ import { useWallets, useWalletConnection, useDAppKit } from "@mysten/dapp-kit-re
 import { dAppKit } from "@/components/SuiProviders";
 import { Transaction } from "@mysten/sui/transactions";
 import { SLUSH_WALLET_NAME } from "@mysten/slush-wallet";
-import { encryptText } from "@/lib/encryption";
 import { validateYouTubeUrl, extractYouTubeId } from "@/lib/youtube";
 import { suiToMist } from "@/lib/pricing";
 
@@ -120,8 +119,18 @@ export function CreateVideoForm() {
         return;
       }
 
-      // Encrypt YouTube URL
-      const encrypted = encryptText(form.youtubeUrl);
+      // Encrypt YouTube URL on server
+      const encryptRes = await fetch("/api/encrypt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: form.youtubeUrl }),
+      });
+
+      if (!encryptRes.ok) {
+        throw new Error("Failed to encrypt video URL");
+      }
+
+      const { encrypted } = await encryptRes.json();
 
       // Generate video ID
       const videoId = crypto.randomUUID();
