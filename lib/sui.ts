@@ -9,6 +9,16 @@ const PLATFORM_CONFIG_ID = process.env.NEXT_PUBLIC_PLATFORM_CONFIG_ID || "";
 
 export const suiClient = new SuiJsonRpcClient({ url: RPC_URL, network: NETWORK_ENV as any });
 
+function decodeBytesToString(bytes: number[] | undefined | null): string {
+  if (!bytes || !Array.isArray(bytes)) {
+    return "";
+  }
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString();
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
 export interface SafeVideoMetadata {
   videoId: string;
   campaignId: string;
@@ -117,23 +127,23 @@ export async function getCampaigns(): Promise<SafeVideoMetadata[]> {
         console.log("[getCampaigns] Campaign object fields:", JSON.stringify(fields, null, 2));
         
         const videoId = fields.video_id 
-          ? (typeof fields.video_id === 'string' ? fields.video_id : Buffer.from(fields.video_id).toString())
+          ? (typeof fields.video_id === 'string' ? fields.video_id : decodeBytesToString(fields.video_id))
           : "";
         
         const title = fields.title 
-          ? (typeof fields.title === 'string' ? fields.title : Buffer.from(fields.title).toString())
+          ? (typeof fields.title === 'string' ? fields.title : decodeBytesToString(fields.title))
           : "";
         
         const description = fields.description 
-          ? (typeof fields.description === 'string' ? fields.description : Buffer.from(fields.description).toString())
+          ? (typeof fields.description === 'string' ? fields.description : decodeBytesToString(fields.description))
           : "";
         
         const disabledReason = fields.disabled_reason 
-          ? (typeof fields.disabled_reason === 'string' ? fields.disabled_reason : Buffer.from(fields.disabled_reason).toString() || null)
+          ? (typeof fields.disabled_reason === 'string' ? fields.disabled_reason : decodeBytesToString(fields.disabled_reason) || null)
           : null;
         
         const thumbnailVideoId = fields.thumbnail_video_id 
-          ? (typeof fields.thumbnail_video_id === 'string' ? fields.thumbnail_video_id : Buffer.from(fields.thumbnail_video_id).toString())
+          ? (typeof fields.thumbnail_video_id === 'string' ? fields.thumbnail_video_id : decodeBytesToString(fields.thumbnail_video_id))
           : "";
           
         return {
@@ -175,19 +185,19 @@ export async function getCampaign(campaignId: string): Promise<SafeVideoMetadata
       return null;
     }
     return {
-      videoId: fields.video_id ? Buffer.from(fields.video_id).toString() : "",
+      videoId: fields.video_id ? (typeof fields.video_id === 'string' ? fields.video_id : decodeBytesToString(fields.video_id)) : "",
       campaignId: obj.data.objectId,
-      title: fields.title ? Buffer.from(fields.title).toString() : "",
-      description: fields.description ? Buffer.from(fields.description).toString() : "",
+      title: fields.title ? (typeof fields.title === 'string' ? fields.title : decodeBytesToString(fields.title)) : "",
+      description: fields.description ? (typeof fields.description === 'string' ? fields.description : decodeBytesToString(fields.description)) : "",
       creatorAddress: fields.creator || "",
       priceMist: fields.price_mist?.toString() || "0",
       priceSui: fields.price_mist ? (Number(fields.price_mist) / 1e9).toFixed(4) : "0",
       durationHours: Number(fields.duration_hours) || 0,
       isDisabled: fields.is_disabled || false,
-      disabledReason: fields.disabled_reason ? Buffer.from(fields.disabled_reason).toString() || null : null,
+      disabledReason: fields.disabled_reason ? (typeof fields.disabled_reason === 'string' ? fields.disabled_reason : decodeBytesToString(fields.disabled_reason) || null) : null,
       totalPurchases: Number(fields.total_purchases) || 0,
       totalGrossMist: fields.total_gross_mist?.toString() || "0",
-      thumbnailVideoId: fields.thumbnail_video_id ? Buffer.from(fields.thumbnail_video_id).toString() : "",
+      thumbnailVideoId: fields.thumbnail_video_id ? (typeof fields.thumbnail_video_id === 'string' ? fields.thumbnail_video_id : decodeBytesToString(fields.thumbnail_video_id)) : "",
     };
   } catch (error) {
     console.error("Error fetching campaign:", error);
@@ -212,9 +222,9 @@ export async function getCampaignEncryptedData(campaignId: string) {
       return null;
     }
     return {
-      encryptedUrl: fields.encrypted_url ? Buffer.from(fields.encrypted_url).toString() : "",
-      iv: fields.iv ? Buffer.from(fields.iv).toString() : "",
-      authTag: fields.auth_tag ? Buffer.from(fields.auth_tag).toString() : "",
+      encryptedUrl: fields.encrypted_url ? (typeof fields.encrypted_url === 'string' ? fields.encrypted_url : decodeBytesToString(fields.encrypted_url)) : "",
+      iv: fields.iv ? (typeof fields.iv === 'string' ? fields.iv : decodeBytesToString(fields.iv)) : "",
+      authTag: fields.auth_tag ? (typeof fields.auth_tag === 'string' ? fields.auth_tag : decodeBytesToString(fields.auth_tag)) : "",
     };
   } catch (error) {
     console.error("Error fetching encrypted data:", error);
