@@ -54,8 +54,8 @@ export async function getCampaigns(): Promise<SafeVideoMetadata[]> {
     const content = (registryObj.data.content as any);
     let campaignIds: string[] = [];
 
-    if (content.campaigns) {
-      const campaigns = content.campaigns;
+    const campaigns = content?.fields?.campaigns;
+    if (campaigns) {
       console.log("[server:getCampaigns] campaigns raw:", JSON.stringify(campaigns, null, 2));
       
       let contents: any[] = [];
