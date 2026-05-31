@@ -175,20 +175,28 @@ module private_tube::private_tube {
 
         let expiration_timestamp_ms = tx_context::epoch_timestamp_ms(ctx) + (campaign.duration_hours * 3600 * 1000);
         let campaign_id = object::uid_to_address(&campaign.id);
+        let buyer = tx_context::sender(ctx);
 
-        let access_record = AccessRecord {
-            id: object::new(ctx),
-            buyer: tx_context::sender(ctx),
-            campaign_id,
-            expiration_timestamp_ms,
-        };
+        if (dof::exists(&campaign.id, buyer)) {
+            // Update existing access record
+            let record: &mut AccessRecord = dof::borrow_mut(&mut campaign.id, buyer);
+            record.expiration_timestamp_ms = expiration_timestamp_ms;
+        } else {
+            // Create new access record
+            let access_record = AccessRecord {
+                id: object::new(ctx),
+                buyer,
+                campaign_id,
+                expiration_timestamp_ms,
+            };
 
-        dof::add(&mut campaign.id, tx_context::sender(ctx), access_record);
+            dof::add(&mut campaign.id, buyer, access_record);
+        }
 
         event::emit(AccessPurchased {
             campaign_id,
             video_id: campaign.video_id,
-            buyer: tx_context::sender(ctx),
+            buyer,
             creator: campaign.creator,
             platform_treasury: config.treasury,
             total_amount_mist: total_amount,
