@@ -53,17 +53,15 @@ export default function MarketplacePage() {
     return "none";
   };
 
-  const visible = campaigns.filter(v => {
-    if (v.isDisabled) return false;
-    const allowedIds = process.env.NEXT_PUBLIC_ALLOWED_VIDEO_IDS;
-    // "none" or empty string = hide everything (fresh start mode)
-    if (allowedIds === "none" || allowedIds === "") return false;
-    if (allowedIds) {
-      const ids = allowedIds.split(",").map(id => id.trim()).filter(Boolean);
-      if (ids.length > 0) return ids.includes(v.videoId);
-    }
-    return true;
-  });
+  // Permanently hidden legacy test campaigns — new campaigns show automatically
+  const BLOCKED_VIDEO_IDS = new Set([
+    "95f75943-b013-41fe-9505-5e942fa97e0b", // yyyyyyyyyyy
+    "e62913dc-14e9-4e58-9d56-c61415331a0d", // ttttttttttttttttttttttttttt
+    "83c479b8-5da8-477e-93db-cb9bfedd8a26", // video
+    "3065057e-bf03-4429-9ccd-ed28fb7d4f75", // Globe
+  ]);
+
+  const visible = campaigns.filter(v => !v.isDisabled && !BLOCKED_VIDEO_IDS.has(v.videoId));
 
   return (
     <div className="page">
