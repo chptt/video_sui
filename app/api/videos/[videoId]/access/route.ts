@@ -1,11 +1,13 @@
 /**
  * GET /api/videos/[videoId]/access
- * Check if the current user has active access to a video
+ * Check if the current user has active access to a video.
+ * Checks on-chain first, then falls back to Pinata access records.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import { getCampaignByVideoId, checkAccess as checkOnChainAccess } from "@/lib/sui-server";
+import { checkAccess as checkPinataAccess } from "@/lib/accessStore";
 
 export async function GET(
   req: NextRequest,
@@ -20,18 +22,40 @@ export async function GET(
 
       const campaign = await getCampaignByVideoId(videoId);
       if (!campaign) {
-        return NextResponse.json({ hasAccess: false, expiresAt: null, isExpired: false });
+        // Fall back to Pinata-only access check (no on-chain campaign found)
+        const pinataAccess = await checkPinataAccess(user.suiAddress, videoId, user.email);
+        const isExpired = pinataAccess.expiresAt ? new Date(pinataAccess.expiresAt).getTime() <= Date.now() : false;
+        return NextResponse.json({
+          hasAccess: pinataAccess.hasAccess,
+          expiresAt: pinataAccess.expiresAt,
+          isExpired,
+        });
       }
 
-      const access = await checkOnChainAccess(campaign.campaignId, user.suiAddress);
-      const isExpired = access.expiresAt ? new Date(access.expiresAt).getTime() <= Date.now() : false;
+      // Check on-chain first
+      const onChainAccess = await checkOnChainAccess(campaign.campaignId, user.suiAddress);
+      console.log(`[access] On-chain result:`, onChainAccess);
 
-      console.log(`[access] Check result:`, { ...access, isExpired });
+      if (onChainAccess.hasAccess) {
+        const isExpired = onChainAccess.expiresAt ? new Date(onChainAccess.expiresAt).getTime() <= Date.now() : false;
+        return NextResponse.json({
+          hasAccess: true,
+          expiresAt: onChainAccess.expiresAt,
+          isExpired,
+        });
+      }
+
+      // Fall back to Pinata access records (covers payments recorded off-chain)
+      console.log(`[access] No on-chain access, checking Pinata fallback...`);
+      const pinataAccess = await checkPinataAccess(user.suiAddress, videoId, user.email);
+      console.log(`[access] Pinata fallback result:`, pinataAccess);
+
+      const isExpired = pinataAccess.expiresAt ? new Date(pinataAccess.expiresAt).getTime() <= Date.now() : false;
 
       return NextResponse.json({
-        hasAccess: access.hasAccess,
-        expiresAt: access.expiresAt,
-        isExpired: isExpired,
+        hasAccess: pinataAccess.hasAccess,
+        expiresAt: pinataAccess.expiresAt,
+        isExpired,
       });
     } catch (err) {
       console.error("Check access error:", err);

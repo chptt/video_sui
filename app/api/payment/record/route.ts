@@ -94,16 +94,16 @@ export async function POST(req: NextRequest) {
           });
         }
         
+        const accessIsActive = new Date(existingAccess.accessExpiresAt) > new Date();
         return NextResponse.json(
           {
+            success: accessIsActive,
             error: "Transaction already processed",
-            access: existingAccess
-              ? {
-                  hasAccess: new Date(existingAccess.accessExpiresAt) > new Date(),
-                  expiresAt: existingAccess.accessExpiresAt,
-                  videoId,
-                }
-              : null,
+            access: {
+              hasAccess: accessIsActive,
+              expiresAt: existingAccess.accessExpiresAt,
+              videoId,
+            },
           },
           { status: 409 }
         );
