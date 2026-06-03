@@ -53,7 +53,15 @@ export default function MarketplacePage() {
     return "none";
   };
 
-  const visible = campaigns.filter(v => !v.isDisabled);
+  const visible = campaigns.filter(v => {
+    if (v.isDisabled) return false;
+    const allowedIds = process.env.NEXT_PUBLIC_ALLOWED_VIDEO_IDS;
+    if (allowedIds) {
+      const ids = allowedIds.split(",").map(id => id.trim()).filter(Boolean);
+      if (ids.length > 0) return ids.includes(v.videoId);
+    }
+    return true;
+  });
 
   return (
     <div className="page">
