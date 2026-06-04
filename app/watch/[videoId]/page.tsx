@@ -279,7 +279,7 @@ export default function WatchPage() {
 
               {/* Recovery button for users who already paid but access isn't showing */}
               <button
-                onClick={checkAccess}
+                onClick={() => checkAccess()}
                 disabled={accessLoading}
                 style={{ background: "none", border: "none", color: "#475569", fontSize: "0.8125rem", cursor: "pointer", textDecoration: "underline" }}
               >
