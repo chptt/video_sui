@@ -95,74 +95,40 @@ export default function WatchPage() {
 
   // ── Handle payment success ────────────────────────────────────────────────
   const handlePaymentSuccess = async (txDigest: string) => {
-    if (!campaign) return;
     console.log("[WatchPage] Payment success! txDigest:", txDigest.slice(0, 20) + "...");
     setPurchasing(true);
-    try {
-      const res = await fetch("/api/payment/record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId, txDigest }),
-      });
-      const data = await res.json();
+    toast.success("Payment confirmed on Sui! Verifying access...");
 
-      console.log("[WatchPage] Payment record response FULL:", { status: res.status, data });
+    // Poll on-chain access — the Move contract writes the AccessRecord in the
+    // same transaction, but RPC indexing can lag by a few seconds.
+    const MAX_ATTEMPTS = 10;
+    const DELAY_MS = 2000;
 
-      // FIRST: Check if data.success is true — regardless of status!
-      if (data.success === true) {
-        console.log("[WatchPage] Got success response! Setting access...");
-        toast.success("Access confirmed!");
-        setAccess({
-          hasAccess: true,
-          expiresAt: data.access?.expiresAt ?? null,
-          isExpired: false,
-        });
-        return;
-      }
-
-      if (res.status === 409) {
-        // Transaction already processed — access record should exist.
-        // Use the access from the 409 response if available, otherwise re-check.
-        console.log("[WatchPage] 409 - transaction already processed");
-        if (data.access?.hasAccess) {
-          console.log("[WatchPage] 409 has access! Setting access...");
-          toast.success("Access confirmed!");
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      await new Promise((r) => setTimeout(r, DELAY_MS));
+      try {
+        const res = await fetch(`/api/videos/${videoId}/access`);
+        const data = await res.json();
+        if (data.hasAccess) {
           setAccess({
             hasAccess: true,
-            expiresAt: data.access.expiresAt ?? null,
+            expiresAt: data.expiresAt ?? null,
             isExpired: false,
           });
+          toast.success("Access confirmed!");
+          setPurchasing(false);
           return;
         }
-        toast.info("Payment already recorded. Checking your access...");
-        await checkAccess();
-        // If still not found after re-check, optimistically grant access —
-        // the player's own retry loop will confirm within ~18s.
-        console.log("[WatchPage] Optimistically setting access to true...");
-        setAccess((prev) =>
-          prev?.hasAccess ? prev : { hasAccess: true, expiresAt: null, isExpired: false }
-        );
-        return;
+      } catch {
+        // keep polling
       }
-
-      if (!res.ok) {
-        toast.error(data.error || "Failed to record payment");
-        return;
-      }
-
-      toast.success("Payment recorded! Preparing your video...");
-      console.log("[WatchPage] Payment recorded successfully! Setting access...");
-      setAccess({
-        hasAccess: true,
-        expiresAt: data.access?.expiresAt ?? null,
-        isExpired: false,
-      });
-    } catch (err) {
-      console.error("[WatchPage] Error recording payment:", err);
-      toast.error("Failed to record payment. Please contact support with your tx digest.");
-    } finally {
-      setPurchasing(false);
     }
+
+    // Timed out — optimistically let the player try; it will show its own error if needed
+    console.warn("[WatchPage] Access not confirmed after polling, setting optimistic access");
+    setAccess({ hasAccess: true, expiresAt: null, isExpired: false });
+    toast.info("Access is being confirmed. The video will load shortly.");
+    setPurchasing(false);
   };
 
   // ── Loading states ────────────────────────────────────────────────────────
@@ -278,7 +244,7 @@ export default function WatchPage() {
                   {purchasing ? (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem", padding: "0.875rem", background: "rgba(168,85,247,0.1)", borderRadius: "0.875rem" }}>
                       <div className="spinner spinner-sm" style={{ borderColor: "rgba(168,85,247,0.2)", borderTopColor: "#a855f7" }} />
-                      <span style={{ color: "#a855f7", fontSize: "0.9375rem" }}>Recording payment...</span>
+                      <span style={{ color: "#a855f7", fontSize: "0.9375rem" }}>Verifying access on-chain...</span>
                     </div>
                   ) : (
                     <PayButton
