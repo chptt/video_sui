@@ -204,41 +204,66 @@ export async function getCampaignEncryptedData(campaignId: string): Promise<Camp
 
 export async function checkAccess(campaignId: string, buyerAddress: string): Promise<{ hasAccess: boolean; expiresAt: string | null }> {
   try {
-    const obj = await suiClient.getObject({
-      id: campaignId,
-      options: { showContent: true },
-    });
-
-    if (obj.data?.content?.dataType !== "moveObject") {
-      return { hasAccess: false, expiresAt: null };
-    }
-
     console.log("[checkAccess] Checking access for:", { campaignId, buyerAddress });
 
-    // Directly fetch dynamic field object with address key
-    const accessRecord = await suiClient.getDynamicFieldObject({
-      parentId: campaignId,
-      name: {
-        type: "address",
-        value: buyerAddress,
-      },
-    });
+    // AccessRecord is stored as a plain dynamic_field (not dynamic_object_field)
+    // because AccessRecord has `store, drop` abilities (no `key`).
+    // We must use getDynamicFields to list fields and find the matching key,
+    // then read the value directly from the field's bcs/content.
+    let cursor: string | undefined | null = undefined;
+    let expiresAtMs: number | null = null;
 
-    console.log("[checkAccess] Access record result:", JSON.stringify(accessRecord, null, 2));
+    do {
+      const page = await suiClient.getDynamicFields({
+        parentId: campaignId,
+        cursor: cursor ?? undefined,
+      });
 
-    if (accessRecord.data?.content?.dataType !== "moveObject") {
+      console.log("[checkAccess] getDynamicFields page:", JSON.stringify(page, null, 2));
+
+      for (const field of page.data) {
+        // The key is the buyer address stored as a Move `address`
+        const keyValue =
+          typeof field.name?.value === "string"
+            ? field.name.value
+            : null;
+
+        const normalizedKey = keyValue?.toLowerCase();
+        const normalizedBuyer = buyerAddress.toLowerCase();
+
+        if (normalizedKey === normalizedBuyer) {
+          // Found the field — now fetch its content to get expiration_timestamp_ms
+          const fieldObj = await suiClient.getObject({
+            id: field.objectId,
+            options: { showContent: true },
+          });
+
+          console.log("[checkAccess] Field object:", JSON.stringify(fieldObj, null, 2));
+
+          const content = fieldObj.data?.content as any;
+          // Dynamic fields wrap value in fields.value
+          const valueFields =
+            content?.fields?.value?.fields ?? // wrapped object
+            content?.fields ?? // flat
+            null;
+
+          if (valueFields) {
+            expiresAtMs = Number(valueFields.expiration_timestamp_ms) || 0;
+          }
+          break;
+        }
+      }
+
+      if (expiresAtMs !== null) break;
+      cursor = page.hasNextPage ? page.nextCursor : null;
+    } while (cursor != null);
+
+    if (expiresAtMs === null) {
+      console.log("[checkAccess] No access record found for buyer");
       return { hasAccess: false, expiresAt: null };
     }
 
-    const content = accessRecord.data.content as any;
-    const fields = content.fields;
-    if (!fields) {
-      return { hasAccess: false, expiresAt: null };
-    }
-
-    const expiresAtMs = Number(fields.expiration_timestamp_ms) || 0;
     const now = Date.now();
-
     console.log("[checkAccess] Expiration check:", { expiresAtMs, now, isExpired: expiresAtMs <= now });
 
     if (expiresAtMs <= now) {
