@@ -117,9 +117,9 @@ export function PayButton({
           ? result.Transaction.digest
           : (result as unknown as { digest: string }).digest;
 
-      // Get the actual wallet address that signed — this is the on-chain buyer key
-      const accounts = kit.stores.$accounts.get();
-      const signerAddress = accounts[0]?.address ?? "";
+      // Get the actual wallet address that signed — use connection.account which
+      // is already in scope and reflects the currently connected Slush wallet
+      const signerAddress = connection.isConnected ? connection.account.address : "";
 
       toast.success("Payment confirmed on Sui!");
       onSuccess(digest, signerAddress);
