@@ -101,13 +101,15 @@ export function PayButton({
       // Split coin for exact payment
       const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(BigInt(priceMist))]);
       
-      // Call contract's purchase_access function
+      // Call purchase_access_v2 — uses Clock for accurate wall-clock expiration
+      // 0x6 is the shared Clock object on Sui (all networks)
       tx.moveCall({
-        target: `${PACKAGE_ID}::private_tube::purchase_access`,
+        target: `${PACKAGE_ID}::private_tube::purchase_access_v2`,
         arguments: [
           tx.object(PLATFORM_CONFIG_ID),
           tx.object(campaignId),
           coin,
+          tx.object("0x6"), // sui::clock::Clock
         ],
       });
 

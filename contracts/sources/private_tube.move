@@ -7,6 +7,7 @@ module private_tube::private_tube {
     use sui::object::{Self, UID};
     use sui::dynamic_object_field as dof;
     use sui::vec_map::{Self, VecMap};
+    use sui::clock::{Self, Clock};
 
     const EInsufficientPayment: u64 = 1;
     const EInvalidFeePercentage: u64 = 2;
@@ -173,7 +174,75 @@ module private_tube::private_tube {
         campaign.total_purchases = campaign.total_purchases + 1;
         campaign.total_gross_mist = campaign.total_gross_mist + total_amount;
 
+        // Legacy: uses epoch_timestamp_ms (can be stale). Use purchase_access_v2 instead.
         let expiration_timestamp_ms = tx_context::epoch_timestamp_ms(ctx) + (campaign.duration_hours * 3600 * 1000);
+        let campaign_id = object::uid_to_address(&campaign.id);
+        let buyer = tx_context::sender(ctx);
+
+        if (dof::exists<address>(&campaign.id, buyer)) {
+            let record: &mut AccessRecord = dof::borrow_mut(&mut campaign.id, buyer);
+            record.expiration_timestamp_ms = expiration_timestamp_ms;
+        } else {
+            let access_record = AccessRecord {
+                id: object::new(ctx),
+                buyer,
+                campaign_id,
+                expiration_timestamp_ms,
+            };
+            dof::add(&mut campaign.id, buyer, access_record);
+        };
+
+        event::emit(AccessPurchased {
+            campaign_id,
+            video_id: campaign.video_id,
+            buyer,
+            creator: campaign.creator,
+            platform_treasury: config.treasury,
+            total_amount_mist: total_amount,
+            creator_amount_mist: creator_amount,
+            platform_fee_mist: platform_fee,
+            platform_fee_bps: fee_bps,
+            duration_hours: campaign.duration_hours,
+            expiration_timestamp_ms,
+        });
+    }
+
+    /// V2: uses sui::clock for accurate wall-clock expiration.
+    /// Always use this instead of purchase_access.
+    public entry fun purchase_access_v2(
+        config: &PlatformConfig,
+        campaign: &mut Campaign,
+        payment: Coin<SUI>,
+        clock: &Clock,
+        ctx: &mut TxContext
+    ) {
+        let total_amount = coin::value(&payment);
+        assert!(total_amount > 0, EZeroAmount);
+        assert!(total_amount == campaign.price_mist, EInsufficientPayment);
+
+        let fee_bps = config.fee_bps;
+        assert!(fee_bps <= 10000, EInvalidFeePercentage);
+
+        let platform_fee = (total_amount * fee_bps) / 10000;
+        let creator_amount = total_amount - platform_fee;
+
+        assert!(creator_amount > 0, EInsufficientPayment);
+
+        let mut payment_mut = payment;
+
+        if (platform_fee > 0) {
+            let fee_coin = coin::split(&mut payment_mut, platform_fee, ctx);
+            transfer::public_transfer(fee_coin, config.treasury);
+        };
+
+        transfer::public_transfer(payment_mut, campaign.creator);
+
+        campaign.total_purchases = campaign.total_purchases + 1;
+        campaign.total_gross_mist = campaign.total_gross_mist + total_amount;
+
+        // Use Clock for accurate wall-clock time — epoch_timestamp_ms is epoch
+        // start time (up to 24h in the past), which causes immediate expiration.
+        let expiration_timestamp_ms = clock::timestamp_ms(clock) + (campaign.duration_hours * 3600 * 1000);
         let campaign_id = object::uid_to_address(&campaign.id);
         let buyer = tx_context::sender(ctx);
 
