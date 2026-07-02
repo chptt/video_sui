@@ -9,6 +9,7 @@
 import { createDAppKit } from "@mysten/dapp-kit-core";
 import { DAppKitProvider } from "@mysten/dapp-kit-react";
 import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
+import { useEffect } from "react";
 
 const NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK ?? "testnet") as
   | "testnet" | "mainnet" | "devnet";
@@ -28,6 +29,13 @@ const dAppKit = createDAppKit({
 });
 
 export function SuiProviders({ children }: { children: React.ReactNode }) {
+  // Auto-register Slush wallet on mount to avoid "must set up wallet" error
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      import("@mysten/slush-wallet").then((m) => m.setupSlushWallet()).catch(() => {});
+    }
+  }, []);
+
   return <DAppKitProvider dAppKit={dAppKit}>{children}</DAppKitProvider>;
 }
 
