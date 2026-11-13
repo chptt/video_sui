@@ -169,7 +169,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | `NEXT_PUBLIC_APP_URL` | App URL (no trailing slash) | Yes |
 | `NEXT_PUBLIC_SUI_NETWORK` | `testnet` or `mainnet` | Yes |
 | `NEXT_PUBLIC_SUI_RPC_URL` | Sui RPC endpoint | Yes |
-| `NEXT_PUBLIC_PACKAGE_ID` | Deployed Move package ID | Optional |
+| `NEXT_PUBLIC_PACKAGE_ID` | Deployed Move package ID | Yes |
+| `NEXT_PUBLIC_REGISTRY_ID` | On-chain shared Registry object ID | Yes |
+| `NEXT_PUBLIC_PLATFORM_CONFIG_ID` | On-chain shared PlatformConfig object ID | Yes |
 | `NEXT_PUBLIC_PLATFORM_TREASURY_ADDRESS` | Platform treasury Sui address | Yes |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | Yes |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Yes |
@@ -286,10 +288,49 @@ The updated metadata is uploaded as a new IPFS file, and the registry is updated
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15 App Router, TypeScript, Tailwind CSS
-- **Auth**: Sui zkLogin with Google OAuth
-- **Storage**: Pinata IPFS (encrypted metadata)
-- **Encryption**: AES-256-GCM (Node.js crypto)
-- **Blockchain**: Sui Testnet
-- **Smart Contract**: Sui Move
-- **Deployment**: Vercel
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 16 App Router, TypeScript, Tailwind CSS v4 |
+| UI Components | shadcn/ui (Radix UI), Lucide React, Sonner |
+| Auth | Sui zkLogin with Google OAuth (`@mysten/dapp-kit-react`) |
+| Storage | Pinata IPFS (AES-256-GCM encrypted metadata) |
+| Encryption | AES-256-GCM (Node.js `crypto`) |
+| Blockchain | Sui Testnet (Move smart contract) |
+| Wallet | Mysten Slush Wallet (`@mysten/slush-wallet`) |
+| Deployment | Vercel (serverless) |
+
+---
+
+## Blockchain Integration
+
+| Property | Value |
+|---|---|
+| Network | Sui Testnet |
+| Chain ID | `4c78adac` |
+| Package ID (v3, current) | `0x237a85698f9db67837f9a9007593db7e00f98c1d5feed15eb1ae87c1b25bafbb` |
+| Original Package ID (v1) | `0xdfe4c53514e2c5889d44579e2b7c91d0fe1ce480e2d53e99ad70901170a34182` |
+| Upgrade Capability | `0x94757f2fb440a1d0b1ece77519d0b68bf5261f7bfd3a027466a5d7e5b3499ee4` |
+| Package Version | 3 (upgraded twice post-deployment) |
+| Move Edition | 2024 |
+| Toolchain | Move 1.73.0 |
+
+**Explorer links:**
+- [View package on SuiScan](https://suiscan.xyz/testnet/object/0x237a85698f9db67837f9a9007593db7e00f98c1d5feed15eb1ae87c1b25bafbb)
+- [View package on SuiVision](https://suivision.xyz/testnet/object/0x237a85698f9db67837f9a9007593db7e00f98c1d5feed15eb1ae87c1b25bafbb)
+
+**Move module:** `private_tube::private_tube`
+
+**Entry functions:**
+- `create_campaign` — creates a Campaign shared object for a video listing
+- `purchase_access_v2` — purchases time-limited access using `sui::clock` for accurate expiry
+- `update_treasury` / `update_fee_bps` — admin-only configuration
+
+**On-chain objects** (set via environment variables):
+- `NEXT_PUBLIC_REGISTRY_ID` — shared Registry object (all campaigns)
+- `NEXT_PUBLIC_PLATFORM_CONFIG_ID` — shared PlatformConfig object (treasury, fee BPS)
+
+---
+
+## License
+
+MIT
